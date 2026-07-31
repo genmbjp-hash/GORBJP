@@ -279,6 +279,34 @@ export default function Admin({ user }) {
         {bookings.length === 0 ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
         ) : (
+
+        {bookings.slice(0, 20).map(b => (
+  <div key={b.id} className="booking-item">
+    <div>
+      <div style={{ fontWeight: 600, fontSize: '14px' }}>
+        {b.profiles?.full_name || 'Unknown'}
+        <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
+      </div>
+      <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+        {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
+      </div>
+      <div style={{ marginTop: '4px' }}>
+        {getStatusBadge(b.status)}
+        <span className="badge" style={{ 
+          marginLeft: '4px',
+          background: b.payment_status === 'free' ? '#FEF3C7' : b.payment_status === 'paid' ? '#D1FAE5' : '#FEE2E2',
+          color: b.payment_status === 'free' ? '#92400E' : b.payment_status === 'paid' ? '#065F46' : '#991B1B'
+        }}>
+          {b.payment_status === 'free' ? '🆓 Gratis' : b.payment_status === 'paid' ? '💰 Dibayar' : '⏳ Pending'}
+        </span>
+      </div>
+    </div>
+    <div>
+      <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin}</div>
+    </div>
+  </div>
+))}
+      
           bookings.slice(0, 20).map(b => (
             <div key={b.id} className="booking-item">
               <div>
