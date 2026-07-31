@@ -262,7 +262,7 @@ export async function deactivateMasterPin(pinId, adminId) {
 }
 
 // ============================================
-// DEVICE FUNCTIONS
+// DEVICE FUNCTIONS (FIXED)
 // ============================================
 
 export async function getDeviceStatus() {
@@ -270,22 +270,41 @@ export async function getDeviceStatus() {
     .from('device_status')
     .select('*')
     .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
-    .single()
+    .maybeSingle()
   return { data, error }
 }
 
 export async function forceLampOn(adminId) {
-  const { data, error } = await supabase
-    .from('device_status')
-    .update({
-      relay_state: true,
-      last_seen: new Date().toISOString()
-    })
-    .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
-    .select()
-    .single()
-
-  if (!error) {
+  // First check if row exists
+  const { data: existing } = await getDeviceStatus()
+  
+  let result
+  if (!existing) {
+    // Insert new row
+    result = await supabase
+      .from('device_status')
+      .insert({
+        device_mac: 'AA:BB:CC:DD:EE:FF',
+        relay_state: true,
+        master_mode: false,
+        last_seen: new Date().toISOString()
+      })
+      .select()
+      .single()
+  } else {
+    // Update existing row
+    result = await supabase
+      .from('device_status')
+      .update({
+        relay_state: true,
+        last_seen: new Date().toISOString()
+      })
+      .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
+      .select()
+      .maybeSingle()
+  }
+  
+  if (!result.error) {
     await supabase
       .from('activity_logs')
       .insert({
@@ -293,21 +312,38 @@ export async function forceLampOn(adminId) {
         event: 'force_lamp_on'
       })
   }
-  return { data, error }
+  
+  return result
 }
 
 export async function forceLampOff(adminId) {
-  const { data, error } = await supabase
-    .from('device_status')
-    .update({
-      relay_state: false,
-      last_seen: new Date().toISOString()
-    })
-    .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
-    .select()
-    .single()
-
-  if (!error) {
+  const { data: existing } = await getDeviceStatus()
+  
+  let result
+  if (!existing) {
+    result = await supabase
+      .from('device_status')
+      .insert({
+        device_mac: 'AA:BB:CC:DD:EE:FF',
+        relay_state: false,
+        master_mode: false,
+        last_seen: new Date().toISOString()
+      })
+      .select()
+      .single()
+  } else {
+    result = await supabase
+      .from('device_status')
+      .update({
+        relay_state: false,
+        last_seen: new Date().toISOString()
+      })
+      .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
+      .select()
+      .maybeSingle()
+  }
+  
+  if (!result.error) {
     await supabase
       .from('activity_logs')
       .insert({
@@ -315,5 +351,6 @@ export async function forceLampOff(adminId) {
         event: 'force_lamp_off'
       })
   }
-  return { data, error }
+  
+  return result
 }
