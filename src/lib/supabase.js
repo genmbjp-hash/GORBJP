@@ -1,8 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-
-// ============================================
-// UPDATE THESE WITH YOUR SUPABASE CREDENTIALS
-// ============================================
 const SUPABASE_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoYm1mZ3prYnh4ZG1rbmhhc2VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0Nzk3NDUsImV4cCI6MjEwMTA1NTc0NX0.n1cgSLaAEqUG3nF57yYepNeTx6VNd9OlT7BmODR4-JE'
 
