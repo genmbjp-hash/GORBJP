@@ -8,6 +8,8 @@ import Signup from './components/Signup'
 import Dashboard from './components/Dashboard'
 import Booking from './components/Booking'
 import Admin from './components/Admin'
+import Checkout from './components/Checkout'
+import Confirmation from './components/Confirmation'
 
 // Toast Context
 const ToastContext = React.createContext()
@@ -103,6 +105,20 @@ function App() {
               <Navigate to="/" />
             )
           } />
+          <Route path="/checkout" element={
+  user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
+    <Checkout user={user} />
+  ) : (
+    <Navigate to="/" />
+  )
+} />
+<Route path="/confirmation" element={
+  user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
+    <Confirmation />
+  ) : (
+    <Navigate to="/" />
+  )
+} />
           <Route path="/admin" element={
             user && profile?.role === 'admin' ? (
               <Admin user={user} />
