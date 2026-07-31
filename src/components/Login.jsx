@@ -27,18 +27,14 @@ export default function Login() {
 
       if (profile?.status === 'pending') {
         showToast('⏳ Akun menunggu persetujuan admin', 'warning')
-        await signOut()
         setLoading(false)
         return
       }
-
       if (profile?.status === 'rejected') {
         showToast('❌ Akun ditolak. Hubungi admin.', 'error')
-        await signOut()
         setLoading(false)
         return
       }
-
       if (profile?.status === 'approved') {
         if (profile.role === 'admin') {
           navigate('/admin')
@@ -47,7 +43,6 @@ export default function Login() {
         }
       }
     }
-
     setLoading(false)
   }
 
@@ -62,28 +57,11 @@ export default function Login() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label" htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              className="form-input"
-              placeholder="email@anda.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <input type="email" id="email" className="form-input" placeholder="email@anda.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-
           <div className="form-group">
             <label className="form-label" htmlFor="password">Kata Sandi</label>
-            <input
-              type="password"
-              id="password"
-              className="form-input"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <input type="password" id="password" className="form-input" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -94,24 +72,6 @@ export default function Login() {
             Belum punya akun? <Link to="/signup" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>Daftar</Link>
           </div>
         </form>
-      </div>
-
-      <div className="card" style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary)' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: 600, textAlign: 'center', color: 'var(--primary)' }}>📋 Cara Kerja</h3>
-        <div className="how-it-works">
-          <div className="hiw-step">
-            <div className="hiw-number">1</div>
-            <div className="hiw-text">Pesan Slot</div>
-          </div>
-          <div className="hiw-step">
-            <div className="hiw-number">2</div>
-            <div className="hiw-text">Dapatkan PIN</div>
-          </div>
-          <div className="hiw-step">
-            <div className="hiw-number">3</div>
-            <div className="hiw-text">Masuk & Nikmati</div>
-          </div>
-        </div>
       </div>
     </div>
   )
