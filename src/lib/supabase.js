@@ -354,3 +354,92 @@ export async function forceLampOff(adminId) {
   
   return result
 }
+
+// ============================================
+// CHECKOUT FUNCTIONS
+// ============================================
+
+export async function createBookingWithCheckout(userId, slotData, duration) {
+  const { date, hour } = slotData
+  const startDateTime = new Date(date)
+  startDateTime.setHours(hour, 0, 0, 0)
+  
+  const endDateTime = new Date(startDateTime)
+  endDateTime.setHours(hour + duration, 0, 0, 0)
+
+  // Check for overlaps one more time
+  const { data: existingBookings, error: checkError } = await supabase
+    .from('bookings')
+    .select('*')
+    .or(`status.eq.pending,status.eq.active`)
+    .filter('start_time', 'lt', endDateTime.toISOString())
+    .filter('end_time', 'gt', startDateTime.toISOString())
+
+  if (checkError) return { error: checkError }
+  if (existingBookings.length > 0) {
+    return { error: { message: 'Slot sudah dibooking oleh orang lain' } }
+  }
+
+  // Generate PIN
+  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
+  if (pinError) return { error: pinError }
+
+  // Create booking with payment fields
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      user_id: userId,
+      pin: pinData,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration_hours: duration,
+      price: 0,
+      payment_status: 'free',
+      payment_method: 'free',
+      status: 'pending'
+    })
+    .select(`
+      *,
+      profiles(full_name)
+    `)
+    .single()
+
+  if (error) return { error }
+
+  // Log activity
+  await supabase
+    .from('activity_logs')
+    .insert({
+      user_id: userId,
+      event: 'booking_created_free',
+      pin: pinData,
+      details: { 
+        start_time: startDateTime.toISOString(), 
+        end_time: endDateTime.toISOString(),
+        duration: duration,
+        price: 0
+      }
+    })
+
+  return { data, error }
+}
+
+export async function getBookingsForDate(date) {
+  const startDate = new Date(date)
+  startDate.setHours(0, 0, 0, 0)
+  
+  const endDate = new Date(date)
+  endDate.setHours(23, 59, 59, 999)
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      profiles(full_name)
+    `)
+    .gte('start_time', startDate.toISOString())
+    .lte('start_time', endDate.toISOString())
+    .or(`status.eq.pending,status.eq.active,status.eq.completed`)
+
+  return { data, error }
+}
