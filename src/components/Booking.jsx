@@ -12,7 +12,6 @@ export default function Booking({ user }) {
   const [confirmed, setConfirmed] = useState(null)
   const navigate = useNavigate()
   const showToast = useToast()
-
   const today = new Date().toISOString().split('T')[0]
 
   async function handleCheckAvailability() {
@@ -20,19 +19,15 @@ export default function Booking({ user }) {
       showToast('❌ Silakan pilih tanggal dan jam', 'error')
       return
     }
-
     setLoading(true)
     const { available, data, error } = await checkAvailability(date, startTime, duration)
-
     if (error) {
       showToast('❌ ' + error.message, 'error')
       setLoading(false)
       return
     }
-
     setAvailable(available)
     setLoading(false)
-
     if (available) {
       showToast('✅ Slot tersedia!', 'success')
     } else {
@@ -45,16 +40,13 @@ export default function Booking({ user }) {
       showToast('❌ Silakan pilih tanggal dan jam', 'error')
       return
     }
-
     setLoading(true)
     const { data, error } = await createBooking(user.id, date, startTime, duration)
-
     if (error) {
       showToast('❌ ' + error.message, 'error')
       setLoading(false)
       return
     }
-
     setConfirmed(data)
     showToast('✅ Pemesanan berhasil! PIN: ' + data.pin, 'success')
     setLoading(false)
@@ -93,9 +85,7 @@ export default function Booking({ user }) {
               <strong>{new Date(confirmed.start_time).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong><br />
               {new Date(confirmed.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} - {new Date(confirmed.end_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
             </div>
-            <button onClick={() => navigate('/dashboard')} className="btn btn-primary" style={{ marginTop: '16px' }}>
-              📋 Lihat Pesanan Saya
-            </button>
+            <button onClick={() => navigate('/dashboard')} className="btn btn-primary" style={{ marginTop: '16px' }}>📋 Lihat Pesanan Saya</button>
           </div>
         </div>
       </div>
@@ -113,9 +103,7 @@ export default function Booking({ user }) {
               <span className="logo-sub">Sistem Pemesanan</span>
             </div>
           </div>
-          <button onClick={() => navigate('/dashboard')} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
-            ← Kembali
-          </button>
+          <button onClick={() => navigate('/dashboard')} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>← Kembali</button>
         </div>
       </div>
 
@@ -125,26 +113,12 @@ export default function Booking({ user }) {
 
         <div className="form-group" style={{ marginTop: '16px' }}>
           <label className="form-label" htmlFor="bookingDate">Tanggal</label>
-          <input
-            type="date"
-            id="bookingDate"
-            className="form-input"
-            min={today}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
+          <input type="date" id="bookingDate" className="form-input" min={today} value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
 
         <div className="form-group">
           <label className="form-label" htmlFor="startTime">Jam Mulai</label>
-          <select
-            id="startTime"
-            className="form-input"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-          >
+          <select id="startTime" className="form-input" value={startTime} onChange={(e) => setStartTime(e.target.value)} required>
             <option value="">Pilih jam</option>
             {['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'].map(t => (
               <option key={t} value={t}>{t}</option>
@@ -154,23 +128,14 @@ export default function Booking({ user }) {
 
         <div className="form-group">
           <label className="form-label" htmlFor="duration">Durasi</label>
-          <select
-            id="duration"
-            className="form-input"
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value))}
-          >
+          <select id="duration" className="form-input" value={duration} onChange={(e) => setDuration(parseInt(e.target.value))}>
             <option value="2">2 Jam</option>
             <option value="3">3 Jam</option>
             <option value="4">4 Jam</option>
           </select>
         </div>
 
-        <button
-          onClick={handleCheckAvailability}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
+        <button onClick={handleCheckAvailability} className="btn btn-secondary" disabled={loading}>
           {loading ? '⏳ Memeriksa...' : '🔍 Cek Ketersediaan'}
         </button>
 
@@ -192,9 +157,7 @@ export default function Booking({ user }) {
         )}
 
         {available === false && (
-          <div className="alert alert-warning" style={{ marginTop: '16px' }}>
-            ⚠️ Slot tidak tersedia. Silakan pilih waktu lain.
-          </div>
+          <div className="alert alert-warning" style={{ marginTop: '16px' }}>⚠️ Slot tidak tersedia. Silakan pilih waktu lain.</div>
         )}
       </div>
     </div>
