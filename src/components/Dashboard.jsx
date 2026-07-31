@@ -9,9 +9,7 @@ export default function Dashboard({ user, profile }) {
   const navigate = useNavigate()
   const showToast = useToast()
 
-  useEffect(() => {
-    loadBookings()
-  }, [])
+  useEffect(() => { loadBookings() }, [])
 
   async function loadBookings() {
     const { data } = await getUserBookings(user.id)
@@ -21,7 +19,6 @@ export default function Dashboard({ user, profile }) {
 
   async function handleCancel(bookingId) {
     if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
-
     const { error } = await supabase
       .from('bookings')
       .update({ status: 'cancelled' })
@@ -29,10 +26,9 @@ export default function Dashboard({ user, profile }) {
       .eq('user_id', user.id)
 
     if (error) {
-      showToast('❌ Gagal membatalkan: ' + error.message, 'error')
+      showToast('❌ ' + error.message, 'error')
       return
     }
-
     showToast('✅ Pesanan dibatalkan', 'success')
     loadBookings()
   }
@@ -53,18 +49,8 @@ export default function Dashboard({ user, profile }) {
   }
 
   function getStatusBadge(status) {
-    const map = {
-      'pending': 'badge-pending',
-      'active': 'badge-active',
-      'completed': 'badge-completed',
-      'cancelled': 'badge-cancelled'
-    }
-    const labels = {
-      'pending': 'Menunggu',
-      'active': 'Aktif',
-      'completed': 'Selesai',
-      'cancelled': 'Dibatalkan'
-    }
+    const map = { 'pending': 'badge-pending', 'active': 'badge-active', 'completed': 'badge-completed', 'cancelled': 'badge-cancelled' }
+    const labels = { 'pending': 'Menunggu', 'active': 'Aktif', 'completed': 'Selesai', 'cancelled': 'Dibatalkan' }
     return <span className={`badge ${map[status] || ''}`}>{labels[status] || status}</span>
   }
 
@@ -74,7 +60,6 @@ export default function Dashboard({ user, profile }) {
 
   return (
     <div className="container" style={{ paddingTop: '16px' }}>
-      {/* Header */}
       <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
         <div className="header-content" style={{ padding: 0 }}>
           <div className="logo">
@@ -84,44 +69,25 @@ export default function Dashboard({ user, profile }) {
               <span className="logo-sub">Sistem Pemesanan</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
-            Keluar
-          </button>
+          <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>Keluar</button>
         </div>
       </div>
 
-      {/* Welcome */}
       <div className="card" style={{ background: 'var(--primary)', color: 'white', border: 'none' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700 }}>👋 Selamat datang, {profile.full_name}!</h2>
         <p style={{ fontSize: '14px', opacity: 0.9 }}>Pesan venue dan dapatkan PIN Anda</p>
       </div>
 
-      {/* Stats */}
       <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-number">{total}</div>
-          <div className="stat-label">Total Pesanan</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">{active}</div>
-          <div className="stat-label">Aktif Hari Ini</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">{upcoming}</div>
-          <div className="stat-label">Akan Datang</div>
-        </div>
+        <div className="stat-card"><div className="stat-number">{total}</div><div className="stat-label">Total Pesanan</div></div>
+        <div className="stat-card"><div className="stat-number">{active}</div><div className="stat-label">Aktif Hari Ini</div></div>
+        <div className="stat-card"><div className="stat-number">{upcoming}</div><div className="stat-label">Akan Datang</div></div>
       </div>
 
-      {/* Book Button */}
-      <Link to="/booking" className="btn btn-primary" style={{ marginBottom: '16px' }}>
-        📖 Pesan Slot Baru
-      </Link>
+      <Link to="/booking" className="btn btn-primary" style={{ marginBottom: '16px' }}>📖 Pesan Slot Baru</Link>
 
-      {/* Recent Bookings */}
       <div className="card">
-        <div className="card-header">
-          <span className="card-title">📋 Pesanan Terbaru</span>
-        </div>
+        <div className="card-header"><span className="card-title">📋 Pesanan Terbaru</span></div>
         {loading ? (
           <div className="loading"><div className="spinner"></div></div>
         ) : bookings.length === 0 ? (
@@ -137,13 +103,7 @@ export default function Dashboard({ user, profile }) {
               <div>
                 <div className="booking-pin">{b.pin}</div>
                 {(b.status === 'pending' || b.status === 'active') && (
-                  <button
-                    onClick={() => handleCancel(b.id)}
-                    className="btn btn-danger btn-sm"
-                    style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
-                  >
-                    Batal
-                  </button>
+                  <button onClick={() => handleCancel(b.id)} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}>Batal</button>
                 )}
               </div>
             </div>
