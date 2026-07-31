@@ -9,9 +9,8 @@ import Dashboard from './components/Dashboard'
 import Booking from './components/Booking'
 import Admin from './components/Admin'
 
-// Toast notification
+// Toast Context
 const ToastContext = React.createContext()
-
 export function useToast() {
   return React.useContext(ToastContext)
 }
@@ -24,7 +23,6 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
@@ -34,7 +32,6 @@ function App() {
       }
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user)
@@ -115,7 +112,6 @@ function App() {
           } />
         </Routes>
 
-        {/* Toast Container */}
         <div className="toast-container">
           {toasts.map(toast => (
             <div key={toast.id} className={`toast toast-${toast.type}`}>
@@ -128,44 +124,28 @@ function App() {
   )
 }
 
-// ===== LANDING PAGE COMPONENT =====
 function LandingPage({ user, profile }) {
   return (
     <div className="container" style={{ paddingTop: '40px' }}>
       <div className="card" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', color: 'white', border: 'none', textAlign: 'center', padding: '40px 24px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '8px' }}>🏛️ Gedung Serbaguna BJP</h1>
         <p style={{ fontSize: '16px', opacity: 0.9 }}>Sewa venue dengan mudah, dapatkan PIN akses</p>
-        <p style={{ fontSize: '14px', opacity: 0.7 }}>Book venue easily, get your access PIN</p>
       </div>
 
       <div className="card">
         <h3 style={{ fontSize: '18px', fontWeight: 700, textAlign: 'center', color: 'var(--primary)', marginBottom: '16px' }}>📋 Cara Kerja</h3>
         <div className="how-it-works">
-          <div className="hiw-step">
-            <div className="hiw-number">1</div>
-            <div className="hiw-text">Daftar & Tunggu Approval</div>
-          </div>
-          <div className="hiw-step">
-            <div className="hiw-number">2</div>
-            <div className="hiw-text">Pilih Tanggal & Waktu</div>
-          </div>
-          <div className="hiw-step">
-            <div className="hiw-number">3</div>
-            <div className="hiw-text">Dapatkan PIN & Masuk</div>
-          </div>
+          <div className="hiw-step"><div className="hiw-number">1</div><div className="hiw-text">Daftar & Tunggu Approval</div></div>
+          <div className="hiw-step"><div className="hiw-number">2</div><div className="hiw-text">Pilih Tanggal & Waktu</div></div>
+          <div className="hiw-step"><div className="hiw-number">3</div><div className="hiw-text">Dapatkan PIN & Masuk</div></div>
         </div>
       </div>
 
       {user && profile?.status === 'pending' && (
-        <div className="alert alert-warning">
-          ⏳ Akun Anda menunggu persetujuan admin. Silakan tunggu.
-        </div>
+        <div className="alert alert-warning">⏳ Akun Anda menunggu persetujuan admin.</div>
       )}
-
       {user && profile?.status === 'rejected' && (
-        <div className="alert alert-error">
-          ❌ Akun Anda ditolak. Hubungi admin.
-        </div>
+        <div className="alert alert-error">❌ Akun Anda ditolak. Hubungi admin.</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
