@@ -42,7 +42,6 @@ export default function Signup() {
           <div className="text-center">
             <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--success)' }}>✅ Pendaftaran Berhasil!</h2>
             <p style={{ color: 'var(--gray-500)', marginTop: '8px' }}>Akun Anda sedang menunggu persetujuan admin.</p>
-            <p style={{ fontSize: '14px', color: 'var(--gray-400)' }}>Anda akan dapat memesan setelah disetujui.</p>
             <Link to="/login" className="btn btn-primary" style={{ marginTop: '16px' }}>🔐 Kembali ke Masuk</Link>
           </div>
         </div>
@@ -61,54 +60,19 @@ export default function Signup() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label" htmlFor="fullName">Nama Lengkap</label>
-            <input
-              type="text"
-              id="fullName"
-              className="form-input"
-              placeholder="Nama Anda"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
+            <input type="text" id="fullName" className="form-input" placeholder="Nama Anda" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </div>
-
           <div className="form-group">
             <label className="form-label" htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              className="form-input"
-              placeholder="email@anda.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <input type="email" id="email" className="form-input" placeholder="email@anda.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-
           <div className="form-group">
             <label className="form-label" htmlFor="phone">Nomor HP (opsional)</label>
-            <input
-              type="tel"
-              id="phone"
-              className="form-input"
-              placeholder="0812-3456-7890"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <input type="tel" id="phone" className="form-input" placeholder="0812-3456-7890" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
-
           <div className="form-group">
             <label className="form-label" htmlFor="password">Kata Sandi</label>
-            <input
-              type="password"
-              id="password"
-              className="form-input"
-              placeholder="Minimal 6 karakter"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength="6"
-            />
+            <input type="password" id="password" className="form-input" placeholder="Minimal 6 karakter" value={password} onChange={(e) => setPassword(e.target.value)} required minLength="6" />
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -120,6 +84,3 @@ export default function Signup() {
           </div>
         </form>
       </div>
-    </div>
-  )
-}
