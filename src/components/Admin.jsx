@@ -25,12 +25,16 @@ export default function Admin({ user }) {
   const [masterPurpose, setMasterPurpose] = useState('')
   const [loading, setLoading] = useState(true)
   const [masterPinResult, setMasterPinResult] = useState(null)
+  const [newBookingsCount, setNewBookingsCount] = useState(0)
   const navigate = useNavigate()
   const showToast = useToast()
 
   useEffect(() => {
     loadAllData()
-    const interval = setInterval(loadDeviceStatus, 30000)
+    const interval = setInterval(() => {
+      loadDeviceStatus()
+      loadAllBookings()
+    }, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -67,6 +71,12 @@ export default function Admin({ user }) {
       const today = new Date().toDateString()
       const todayBookings = data.filter(b => new Date(b.start_time).toDateString() === today)
       const active = data.filter(b => b.status === 'active' || b.status === 'pending')
+      
+      // Count new bookings (last 10 minutes)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+      const newBookings = data.filter(b => new Date(b.created_at) > tenMinutesAgo)
+      setNewBookingsCount(newBookings.length)
+      
       setStats({
         pending: pendingUsers.length,
         today: todayBookings.length,
@@ -163,9 +173,43 @@ export default function Admin({ user }) {
   }
 
   function getStatusBadge(status) {
-    const map = { 'pending': 'badge-pending', 'active': 'badge-active', 'completed': 'badge-completed', 'cancelled': 'badge-cancelled', 'approved': 'badge-approved', 'rejected': 'badge-rejected' }
-    const labels = { 'pending': '⏳ Menunggu', 'active': '✅ Aktif', 'completed': '✔️ Selesai', 'cancelled': '❌ Dibatalkan', 'approved': '✅ Disetujui', 'rejected': '❌ Ditolak' }
+    const map = {
+      'pending': 'badge-pending',
+      'active': 'badge-active',
+      'completed': 'badge-completed',
+      'cancelled': 'badge-cancelled',
+      'approved': 'badge-approved',
+      'rejected': 'badge-rejected'
+    }
+    const labels = {
+      'pending': '⏳ Menunggu',
+      'active': '✅ Aktif',
+      'completed': '✔️ Selesai',
+      'cancelled': '❌ Dibatalkan',
+      'approved': '✅ Disetujui',
+      'rejected': '❌ Ditolak'
+    }
     return <span className={`badge ${map[status] || ''}`}>{labels[status] || status}</span>
+  }
+
+  function getPaymentBadge(paymentStatus) {
+    const styles = {
+      'free': { bg: '#FEF3C7', color: '#92400E', label: '🆓 Gratis' },
+      'paid': { bg: '#D1FAE5', color: '#065F46', label: '💰 Dibayar' },
+      'pending': { bg: '#FEE2E2', color: '#991B1B', label: '⏳ Pending' },
+      'failed': { bg: '#FEE2E2', color: '#991B1B', label: '❌ Gagal' },
+      'refunded': { bg: '#E0E7FF', color: '#3730A3', label: '↩️ Dikembalikan' }
+    }
+    const style = styles[paymentStatus] || styles['pending']
+    return (
+      <span className="badge" style={{ 
+        marginLeft: '4px',
+        background: style.bg,
+        color: style.color
+      }}>
+        {style.label}
+      </span>
+    )
   }
 
   if (loading) {
@@ -178,6 +222,7 @@ export default function Admin({ user }) {
 
   return (
     <div className="container" style={{ paddingTop: '16px' }}>
+      {/* Header */}
       <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
         <div className="header-content" style={{ padding: 0 }}>
           <div className="logo">
@@ -187,19 +232,45 @@ export default function Admin({ user }) {
               <span className="logo-sub">👑 Panel Admin</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>Keluar</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {newBookingsCount > 0 && (
+              <span className="badge badge-active" style={{ fontSize: '14px' }}>
+                🔔 {newBookingsCount} baru
+              </span>
+            )}
+            <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+              Keluar
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <div className="stat-card"><div className="stat-number">{pendingUsers.length}</div><div className="stat-label">User Menunggu</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.today}</div><div className="stat-label">Pesanan Hari Ini</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.active}</div><div className="stat-label">Aktif Sekarang</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.total}</div><div className="stat-label">Total Pesanan</div></div>
+        <div className="stat-card">
+          <div className="stat-number">{pendingUsers.length}</div>
+          <div className="stat-label">User Menunggu</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-number">{stats.today}</div>
+          <div className="stat-label">Pesanan Hari Ini</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-number">{stats.active}</div>
+          <div className="stat-label">Aktif Sekarang</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-number">{stats.total}</div>
+          <div className="stat-label">Total Pesanan</div>
+        </div>
       </div>
 
+      {/* Pending Users */}
       <div className="card">
-        <div className="card-header"><span className="card-title">👤 Persetujuan User</span><span className="badge badge-pending">{pendingUsers.length}</span></div>
+        <div className="card-header">
+          <span className="card-title">👤 Persetujuan User</span>
+          <span className="badge badge-pending">{pendingUsers.length}</span>
+        </div>
         {pendingUsers.length === 0 ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>✅ Tidak ada user menunggu</p>
         ) : (
@@ -211,27 +282,52 @@ export default function Admin({ user }) {
                 <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>Daftar: {formatDate(u.created_at)}</div>
               </div>
               <div className="user-actions">
-                <button onClick={() => handleApprove(u.id)} className="btn btn-success btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>✅ Setujui</button>
-                <button onClick={() => handleReject(u.id)} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>❌ Tolak</button>
+                <button onClick={() => handleApprove(u.id)} className="btn btn-success btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+                  ✅ Setujui
+                </button>
+                <button onClick={() => handleReject(u.id)} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+                  ❌ Tolak
+                </button>
               </div>
             </div>
           ))
         )}
       </div>
 
+      {/* Master PIN */}
       <div className="card" style={{ border: '2px solid var(--warning)' }}>
-        <div className="card-header"><span className="card-title">🔑 Generate PIN Master</span><span className="badge badge-warning">Admin Only</span></div>
+        <div className="card-header">
+          <span className="card-title">🔑 Generate PIN Master</span>
+          <span className="badge badge-warning">Admin Only</span>
+        </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '120px' }}>
             <label className="form-label" style={{ fontSize: '12px' }}>Durasi (jam)</label>
-            <input type="number" className="form-input" value={masterDuration} onChange={(e) => setMasterDuration(parseInt(e.target.value) || 0)} min="1" max="24" style={{ padding: '10px 12px' }} />
+            <input
+              type="number"
+              className="form-input"
+              value={masterDuration}
+              onChange={(e) => setMasterDuration(parseInt(e.target.value) || 0)}
+              min="1"
+              max="24"
+              style={{ padding: '10px 12px' }}
+            />
           </div>
           <div style={{ flex: 2, minWidth: '150px' }}>
             <label className="form-label" style={{ fontSize: '12px' }}>Tujuan</label>
-            <input type="text" className="form-input" placeholder="Maintenance, dll" value={masterPurpose} onChange={(e) => setMasterPurpose(e.target.value)} style={{ padding: '10px 12px' }} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Maintenance, dll"
+              value={masterPurpose}
+              onChange={(e) => setMasterPurpose(e.target.value)}
+              style={{ padding: '10px 12px' }}
+            />
           </div>
         </div>
-        <button onClick={handleGenerateMaster} className="btn btn-warning" style={{ marginTop: '12px' }}>🔑 Generate PIN Master</button>
+        <button onClick={handleGenerateMaster} className="btn btn-warning" style={{ marginTop: '12px' }}>
+          🔑 Generate PIN Master
+        </button>
         {masterPinResult && (
           <div style={{ marginTop: '12px', padding: '16px', background: 'var(--warning)', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
             <p style={{ fontWeight: 600 }}>🔑 PIN Master</p>
@@ -241,8 +337,11 @@ export default function Admin({ user }) {
         )}
       </div>
 
+      {/* Active Master PINs */}
       <div className="card">
-        <div className="card-header"><span className="card-title">🔐 PIN Master Aktif</span></div>
+        <div className="card-header">
+          <span className="card-title">🔐 PIN Master Aktif</span>
+        </div>
         {masterPins.length === 0 ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Tidak ada PIN Master aktif</p>
         ) : (
@@ -250,14 +349,20 @@ export default function Admin({ user }) {
             <div key={p.id} className="booking-item">
               <div>
                 <div style={{ fontWeight: 700, fontSize: '20px', color: 'var(--warning)' }}>{p.pin}</div>
-                <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Berlaku sampai {new Date(p.expires_at).toLocaleString('id-ID')}{p.purpose ? ` • ${p.purpose}` : ''}</div>
+                <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+                  Berlaku sampai {new Date(p.expires_at).toLocaleString('id-ID')}
+                  {p.purpose ? ` • ${p.purpose}` : ''}
+                </div>
               </div>
-              <button onClick={() => handleDeactivateMaster(p.id)} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}>Nonaktifkan</button>
+              <button onClick={() => handleDeactivateMaster(p.id)} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}>
+                Nonaktifkan
+              </button>
             </div>
           ))
         )}
       </div>
 
+      {/* Device Control */}
       <div className="card" style={{ border: '2px solid var(--primary)' }}>
         <div className="card-header">
           <span className="card-title">💡 Kontrol Lampu</span>
@@ -266,47 +371,31 @@ export default function Admin({ user }) {
           </span>
         </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button onClick={handleForceOn} className="btn btn-success" style={{ flex: 1, minWidth: '100px' }}>💡 ON</button>
-          <button onClick={handleForceOff} className="btn btn-danger" style={{ flex: 1, minWidth: '100px' }}>💡 OFF</button>
+          <button onClick={handleForceOn} className="btn btn-success" style={{ flex: 1, minWidth: '100px' }}>
+            💡 ON
+          </button>
+          <button onClick={handleForceOff} className="btn btn-danger" style={{ flex: 1, minWidth: '100px' }}>
+            💡 OFF
+          </button>
         </div>
         <div style={{ marginTop: '12px', fontSize: '14px', color: 'var(--gray-500)' }}>
           Terakhir terlihat: {deviceStatus ? new Date(deviceStatus.last_seen).toLocaleString('id-ID') : '-'}
         </div>
       </div>
 
+      {/* All Bookings */}
       <div className="card">
-        <div className="card-header"><span className="card-title">📋 Semua Pesanan</span></div>
+        <div className="card-header">
+          <span className="card-title">📋 Semua Pesanan</span>
+          {newBookingsCount > 0 && (
+            <span className="badge badge-active" style={{ fontSize: '14px' }}>
+              🔔 {newBookingsCount} baru
+            </span>
+          )}
+        </div>
         {bookings.length === 0 ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
         ) : (
-
-        {bookings.slice(0, 20).map(b => (
-  <div key={b.id} className="booking-item">
-    <div>
-      <div style={{ fontWeight: 600, fontSize: '14px' }}>
-        {b.profiles?.full_name || 'Unknown'}
-        <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
-      </div>
-      <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
-        {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
-      </div>
-      <div style={{ marginTop: '4px' }}>
-        {getStatusBadge(b.status)}
-        <span className="badge" style={{ 
-          marginLeft: '4px',
-          background: b.payment_status === 'free' ? '#FEF3C7' : b.payment_status === 'paid' ? '#D1FAE5' : '#FEE2E2',
-          color: b.payment_status === 'free' ? '#92400E' : b.payment_status === 'paid' ? '#065F46' : '#991B1B'
-        }}>
-          {b.payment_status === 'free' ? '🆓 Gratis' : b.payment_status === 'paid' ? '💰 Dibayar' : '⏳ Pending'}
-        </span>
-      </div>
-    </div>
-    <div>
-      <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin}</div>
-    </div>
-  </div>
-))}
-      
           bookings.slice(0, 20).map(b => (
             <div key={b.id} className="booking-item">
               <div>
@@ -314,14 +403,25 @@ export default function Admin({ user }) {
                   {b.profiles?.full_name || 'Unknown'}
                   <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>{formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}</div>
-                <div style={{ marginTop: '4px' }}>{getStatusBadge(b.status)}</div>
+                <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+                  {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                </div>
+                <div style={{ marginTop: '4px' }}>
+                  {getStatusBadge(b.status)}
+                  {getPaymentBadge(b.payment_status || 'free')}
+                </div>
               </div>
-              <div><div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin}</div></div>
+              <div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin}</div>
+              </div>
             </div>
           ))
         )}
-        {bookings.length > 20 && <p style={{ textAlign: 'center', fontSize: '14px', color: 'var(--gray-400)', marginTop: '12px' }}>Menampilkan 20 dari {bookings.length} pesanan</p>}
+        {bookings.length > 20 && (
+          <p style={{ textAlign: 'center', fontSize: '14px', color: 'var(--gray-400)', marginTop: '12px' }}>
+            Menampilkan 20 dari {bookings.length} pesanan
+          </p>
+        )}
       </div>
     </div>
   )
