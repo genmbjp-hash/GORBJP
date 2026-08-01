@@ -519,34 +519,3 @@ export async function isAdmin(userId) {
   if (error || !data) return false
   return data.role === 'admin'
 }
-
-// ============================================
-// EXPORTS
-// ============================================
-
-export {
-  signUp,
-  signIn,
-  signOut,
-  getCurrentUser,
-  getProfile,
-  checkAvailability,
-  createBooking,
-  createBookingWithCheckout,
-  getUserBookings,
-  getAllBookings,
-  getBookingsForDate,
-  cancelBooking,
-  getPendingUsers,
-  approveUser,
-  rejectUser,
-  generateMasterPin,
-  getActiveMasterPins,
-  deactivateMasterPin,
-  getDeviceStatus,
-  forceLampOn,
-  forceLampOff,
-  sendTelegramNotification,
-  logActivity,
-  isAdmin
-}
