@@ -185,7 +185,7 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
   if (error) return { error }
 
   // ============================================
-  // SEND TELEGRAM NOTIFICATION
+  // SEND TELEGRAM NOTIFICATION (FIXED)
   // ============================================
   try {
     console.log('📤 Getting profile for user:', userId)
@@ -201,10 +201,16 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     } else if (profile) {
       console.log('✅ Profile found:', profile.email)
       
-      // Send notification
-      await sendTelegramNotification(data, profile)
-    } else {
-      console.warn('⚠️ Profile not found for user:', userId)
+      // ✅ USE THE CORRECT FUNCTION CALL
+      const { error: invokeError } = await supabase.functions.invoke('send-telegram', {
+        body: { booking: data, profile }
+      })
+      
+      if (invokeError) {
+        console.error('❌ Telegram invoke error:', invokeError)
+      } else {
+        console.log('✅ Telegram sent successfully!')
+      }
     }
   } catch (err) {
     console.error('❌ Telegram error:', err.message)
