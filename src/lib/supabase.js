@@ -1,11 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
-const SUPABASE_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoYm1mZ3prYnh4ZG1rbmhhc2VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0Nzk3NDUsImV4cCI6MjEwMTA1NTc0NX0.n1cgSLaAEqUG3nF57yYepNeTx6VNd9OlT7BmODR4-JE'
+
+// ============================================
+// SUPABASE CREDENTIALS
+// ============================================
+const SUPABASE_URL = 'https://your-project.supabase.co'
+const SUPABASE_ANON_KEY = 'your-anon-key'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ============================================
-// AUTH FUNCTIONS (UPDATED)
+// AUTH FUNCTIONS
 // ============================================
 
 export async function signUp(email, password, fullName, displayName, phone, block, houseNumber) {
@@ -24,6 +28,7 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
   })
   return { data, error }
 }
+
 export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -74,21 +79,20 @@ export async function createBooking(userId, date, startTime, durationHours = 2) 
   const startDateTime = new Date(`${date}T${startTime}`)
   const endDateTime = new Date(startDateTime.getTime() + durationHours * 60 * 60 * 1000)
 
-  // Generate PIN using Supabase RPC
-  const { data: pinData, error: pinError } = await supabase
-    .rpc('generate_pin')
-
+  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
-  const pin = pinData
 
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
-      pin: pin,
+      pin: pinData,
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       duration_hours: durationHours,
+      price: 0,
+      payment_status: 'free',
+      payment_method: 'free',
       status: 'pending'
     })
     .select()
@@ -100,13 +104,118 @@ export async function createBooking(userId, date, startTime, durationHours = 2) 
       .insert({
         user_id: userId,
         event: 'booking_created',
-        pin: pin,
+        pin: pinData,
         details: { start_time: startDateTime.toISOString(), end_time: endDateTime.toISOString() }
       })
   }
 
   return { data, error }
 }
+
+// ============================================
+// CHECKOUT + TELEGRAM NOTIFICATION
+// ============================================
+
+export async function sendTelegramNotification(booking, profile) {
+  try {
+    console.log('📤 Sending Telegram notification...')
+    console.log('📤 Booking PIN:', booking?.pin)
+    console.log('📤 Profile email:', profile?.email)
+    
+    const { data, error } = await supabase.functions.invoke('send-telegram', {
+      body: { booking, profile }
+    })
+    
+    if (error) {
+      console.error('❌ Telegram invoke error:', error)
+      return { error }
+    }
+    
+    console.log('✅ Telegram response:', data)
+    return { data }
+    
+  } catch (error) {
+    console.error('❌ Telegram catch error:', error.message)
+    return { error }
+  }
+}
+
+export async function createBookingWithCheckout(userId, slotData, duration) {
+  const { date, hour } = slotData
+  const startDateTime = new Date(date)
+  startDateTime.setHours(hour, 0, 0, 0)
+  
+  const endDateTime = new Date(startDateTime)
+  endDateTime.setHours(hour + duration, 0, 0, 0)
+
+  // Check for overlaps
+  const { data: existingBookings, error: checkError } = await supabase
+    .from('bookings')
+    .select('*')
+    .or(`status.eq.pending,status.eq.active`)
+    .filter('start_time', 'lt', endDateTime.toISOString())
+    .filter('end_time', 'gt', startDateTime.toISOString())
+
+  if (checkError) return { error: checkError }
+  if (existingBookings.length > 0) {
+    return { error: { message: 'Slot sudah dibooking oleh orang lain' } }
+  }
+
+  // Generate PIN
+  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
+  if (pinError) return { error: pinError }
+
+  // Create booking
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      user_id: userId,
+      pin: pinData,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration_hours: duration,
+      price: 0,
+      payment_status: 'free',
+      payment_method: 'free',
+      status: 'pending'
+    })
+    .select()
+    .single()
+
+  if (error) return { error }
+
+  // ============================================
+  // SEND TELEGRAM NOTIFICATION
+  // ============================================
+  try {
+    console.log('📤 Getting profile for user:', userId)
+    
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (profileError) {
+      console.error('❌ Profile fetch error:', profileError)
+    } else if (profile) {
+      console.log('✅ Profile found:', profile.email)
+      
+      // Send notification
+      await sendTelegramNotification(data, profile)
+    } else {
+      console.warn('⚠️ Profile not found for user:', userId)
+    }
+  } catch (err) {
+    console.error('❌ Telegram error:', err.message)
+  }
+
+  return { data, error }
+}
+
+// ============================================
+// GET BOOKINGS
+// ============================================
 
 export async function getUserBookings(userId) {
   const { data, error } = await supabase
@@ -120,8 +229,28 @@ export async function getUserBookings(userId) {
 export async function getAllBookings() {
   const { data, error } = await supabase
     .from('bookings')
-    .select('*, profiles(full_name, email)')
+    .select('*, profiles(full_name, display_name, email, phone, block, house_number)')
     .order('start_time', { ascending: false })
+  return { data, error }
+}
+
+export async function getBookingsForDate(date) {
+  const startDate = new Date(date)
+  startDate.setHours(0, 0, 0, 0)
+  
+  const endDate = new Date(date)
+  endDate.setHours(23, 59, 59, 999)
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      profiles(full_name, display_name)
+    `)
+    .gte('start_time', startDate.toISOString())
+    .lte('start_time', endDate.toISOString())
+    .or(`status.eq.pending,status.eq.active,status.eq.completed`)
+
   return { data, error }
 }
 
@@ -207,6 +336,10 @@ export async function rejectUser(userId, adminId) {
   return { data, error }
 }
 
+// ============================================
+// MASTER PIN FUNCTIONS
+// ============================================
+
 export async function generateMasterPin(adminId, durationMinutes, purpose = '') {
   const pin = String(Math.floor(1000 + Math.random() * 9000))
   const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000)
@@ -267,7 +400,7 @@ export async function deactivateMasterPin(pinId, adminId) {
 }
 
 // ============================================
-// DEVICE FUNCTIONS (FIXED)
+// DEVICE FUNCTIONS
 // ============================================
 
 export async function getDeviceStatus() {
@@ -280,12 +413,10 @@ export async function getDeviceStatus() {
 }
 
 export async function forceLampOn(adminId) {
-  // First check if row exists
   const { data: existing } = await getDeviceStatus()
   
   let result
   if (!existing) {
-    // Insert new row
     result = await supabase
       .from('device_status')
       .insert({
@@ -297,7 +428,6 @@ export async function forceLampOn(adminId) {
       .select()
       .single()
   } else {
-    // Update existing row
     result = await supabase
       .from('device_status')
       .update({
@@ -361,130 +491,63 @@ export async function forceLampOff(adminId) {
 }
 
 // ============================================
-// CHECKOUT FUNCTIONS
+// ACTIVITY LOGS
 // ============================================
 
-export async function createBookingWithCheckout(userId, slotData, duration) {
-  const { date, hour } = slotData
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
-
-  // Check for overlaps
-  const { data: existingBookings, error: checkError } = await supabase
-    .from('bookings')
-    .select('*')
-    .or(`status.eq.pending,status.eq.active`)
-    .filter('start_time', 'lt', endDateTime.toISOString())
-    .filter('end_time', 'gt', startDateTime.toISOString())
-
-  if (checkError) return { error: checkError }
-  if (existingBookings.length > 0) {
-    return { error: { message: 'Slot sudah dibooking oleh orang lain' } }
-  }
-
-  // Generate PIN
-  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
-  if (pinError) return { error: pinError }
-
-  // Create booking
-  const { data, error } = await supabase
-    .from('bookings')
+export async function logActivity(userId, event, pin = null, details = null) {
+  const { error } = await supabase
+    .from('activity_logs')
     .insert({
       user_id: userId,
-      pin: pinData,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      duration_hours: duration,
-      price: 0,
-      payment_status: 'free',
-      payment_method: 'free',
-      status: 'pending'
+      event: event,
+      pin: pin,
+      details: details
     })
-    .select()
-    .single()
-
-  if (error) return { error }
-
-  // ============================================
-  // SEND TELEGRAM NOTIFICATION
-  // ============================================
-  try {
-    console.log('📤 Getting profile for user:', userId)
-    
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-
-    if (profileError) {
-      console.error('❌ Profile fetch error:', profileError)
-    } else if (profile) {
-      console.log('✅ Profile found for:', profile.email)
-      
-      // IMPORTANT: Use the exact function call
-      const { error: invokeError } = await supabase.functions.invoke('send-telegram', {
-        body: { booking: data, profile }
-      })
-      
-      if (invokeError) {
-        console.error('❌ Telegram invoke error:', invokeError)
-      } else {
-        console.log('✅ Telegram sent successfully!')
-      }
-    }
-  } catch (err) {
-    console.error('❌ Telegram catch error:', err.message)
-  }
-
-  return { data, error }
+  return { error }
 }
 
-export async function getBookingsForDate(date) {
-  const startDate = new Date(date)
-  startDate.setHours(0, 0, 0, 0)
-  
-  const endDate = new Date(date)
-  endDate.setHours(23, 59, 59, 999)
+// ============================================
+// CHECK ADMIN
+// ============================================
 
+export async function isAdmin(userId) {
   const { data, error } = await supabase
-    .from('bookings')
-    .select(`
-      *,
-      profiles(full_name)
-    `)
-    .gte('start_time', startDate.toISOString())
-    .lte('start_time', endDate.toISOString())
-    .or(`status.eq.pending,status.eq.active,status.eq.completed`)
-
-  return { data, error }
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+  if (error || !data) return false
+  return data.role === 'admin'
 }
+
 // ============================================
-// TELEGRAM NOTIFICATION
+// EXPORTS
 // ============================================
 
-export async function sendTelegramNotification(booking, profile) {
-  try {
-    console.log('📤 Sending Telegram for PIN:', booking?.pin)
-    console.log('📤 Profile:', profile?.email)
-    
-    const { data, error } = await supabase.functions.invoke('send-telegram', {
-      body: { booking, profile }  // ← This MUST be a JSON object
-    })
-    
-    if (error) {
-      console.error('❌ Telegram invoke error:', error)
-      return { error }
-    }
-    
-    console.log('✅ Telegram response:', data)
-    return { data }
-    
-  } catch (error) {
-    console.error('❌ Telegram catch error:', error.message)
-    return { error }
-  }
+export {
+  supabase,
+  signUp,
+  signIn,
+  signOut,
+  getCurrentUser,
+  getProfile,
+  checkAvailability,
+  createBooking,
+  createBookingWithCheckout,
+  getUserBookings,
+  getAllBookings,
+  getBookingsForDate,
+  cancelBooking,
+  getPendingUsers,
+  approveUser,
+  rejectUser,
+  generateMasterPin,
+  getActiveMasterPins,
+  deactivateMasterPin,
+  getDeviceStatus,
+  forceLampOn,
+  forceLampOff,
+  sendTelegramNotification,
+  logActivity,
+  isAdmin
 }
