@@ -276,11 +276,17 @@ export default function Admin({ user }) {
         ) : (
           pendingUsers.map(u => (
             <div key={u.id} className="user-item">
-              <div className="user-info">
-                <div className="user-name">{u.full_name}</div>
-                <div className="user-email">{u.email}</div>
-<div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-  📞 {u.phone || '-'} • Blok {u.block || '-'} No. {u.house_number || '-'}
+<div className="user-info">
+  <div className="user-name">
+    {u.display_name || u.full_name || 'Unknown'}
+    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginLeft: '8px' }}>
+      (Nama lengkap: {u.full_name})
+    </span>
+  </div>
+  <div className="user-email">{u.email}</div>
+  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+    📞 {u.phone || '-'} • Blok {u.block || '-'} No. {u.house_number || '-'}
+  </div>
 </div>
                 <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>Daftar: {formatDate(u.created_at)}</div>
               </div>
