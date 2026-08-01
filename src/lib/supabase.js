@@ -26,6 +26,34 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
       }
     }
   })
+
+  if (!error && data.user) {
+    // Send Telegram notification for new registration
+    try {
+      const profile = {
+        display_name: displayName,
+        full_name: fullName,
+        email: email,
+        phone: phone,
+        block: block,
+        house_number: houseNumber
+      }
+      
+      const EDGE_FUNCTION_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co/functions/v1/send-telegram'
+      
+      await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ profile, type: 'register' })
+      })
+    } catch (err) {
+      console.error('❌ Telegram registration error:', err)
+    }
+  }
+
   return { data, error }
 }
 
