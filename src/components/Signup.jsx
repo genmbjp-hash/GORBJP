@@ -7,6 +7,8 @@ export default function Signup() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [block, setBlock] = useState('')
+  const [houseNumber, setHouseNumber] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -16,13 +18,33 @@ export default function Signup() {
     e.preventDefault()
     setLoading(true)
 
+    // Validation
     if (password.length < 6) {
       showToast('❌ Kata sandi minimal 6 karakter', 'error')
       setLoading(false)
       return
     }
 
-    const { data, error } = await signUp(email, password, fullName, phone)
+    if (!block) {
+      showToast('❌ Silakan pilih Blok', 'error')
+      setLoading(false)
+      return
+    }
+
+    if (!houseNumber.trim()) {
+      showToast('❌ Nomor Rumah wajib diisi', 'error')
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await signUp(
+      email,
+      password,
+      fullName,
+      phone,
+      block,
+      houseNumber
+    )
 
     if (error) {
       showToast('❌ ' + error.message, 'error')
@@ -42,6 +64,7 @@ export default function Signup() {
           <div className="text-center">
             <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--success)' }}>✅ Pendaftaran Berhasil!</h2>
             <p style={{ color: 'var(--gray-500)', marginTop: '8px' }}>Akun Anda sedang menunggu persetujuan admin.</p>
+            <p style={{ fontSize: '14px', color: 'var(--gray-400)' }}>Anda akan dapat memesan setelah disetujui.</p>
             <Link to="/login" className="btn btn-primary" style={{ marginTop: '16px' }}>🔐 Kembali ke Masuk</Link>
           </div>
         </div>
@@ -59,20 +82,87 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="fullName">Nama Lengkap</label>
-            <input type="text" id="fullName" className="form-input" placeholder="Nama Anda" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+            <label className="form-label" htmlFor="fullName">Nama Lengkap *</label>
+            <input
+              type="text"
+              id="fullName"
+              className="form-input"
+              placeholder="Nama Anda"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
           </div>
+
           <div className="form-group">
-            <label className="form-label" htmlFor="email">Email</label>
-            <input type="email" id="email" className="form-input" placeholder="email@anda.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <label className="form-label" htmlFor="email">Email *</label>
+            <input
+              type="email"
+              id="email"
+              className="form-input"
+              placeholder="email@anda.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
+
           <div className="form-group">
-            <label className="form-label" htmlFor="phone">Nomor HP (opsional)</label>
-            <input type="tel" id="phone" className="form-input" placeholder="0812-3456-7890" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <label className="form-label" htmlFor="phone">Nomor HP *</label>
+            <input
+              type="tel"
+              id="phone"
+              className="form-input"
+              placeholder="0812-3456-7890"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
           </div>
+
           <div className="form-group">
-            <label className="form-label" htmlFor="password">Kata Sandi</label>
-            <input type="password" id="password" className="form-input" placeholder="Minimal 6 karakter" value={password} onChange={(e) => setPassword(e.target.value)} required minLength="6" />
+            <label className="form-label" htmlFor="block">Blok Rumah *</label>
+            <select
+              id="block"
+              className="form-input"
+              value={block}
+              onChange={(e) => setBlock(e.target.value)}
+              required
+            >
+              <option value="">Pilih Blok</option>
+              <option value="A">Blok A</option>
+              <option value="C">Blok C</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="houseNumber">Nomor Rumah *</label>
+            <input
+              type="text"
+              id="houseNumber"
+              className="form-input"
+              placeholder="Contoh: 12A, 15, 07"
+              value={houseNumber}
+              onChange={(e) => setHouseNumber(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="password">Kata Sandi *</label>
+            <input
+              type="password"
+              id="password"
+              className="form-input"
+              placeholder="Minimal 6 karakter"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength="6"
+            />
+            <p style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '4px' }}>
+              Minimal 6 karakter
+            </p>
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={loading}>
