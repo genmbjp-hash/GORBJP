@@ -8,13 +8,14 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 // AUTH FUNCTIONS (UPDATED)
 // ============================================
 
-export async function signUp(email, password, fullName, phone, block, houseNumber) {
+export async function signUp(email, password, fullName, displayName, phone, block, houseNumber) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
+        display_name: displayName,
         phone: phone,
         block: block,
         house_number: houseNumber
