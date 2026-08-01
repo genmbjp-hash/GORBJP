@@ -141,6 +141,11 @@ export async function sendTelegramNotification(booking, profile) {
 }
 
 export async function createBookingWithCheckout(userId, slotData, duration) {
+  console.log('📤 createBookingWithCheckout called')
+  console.log('📤 userId:', userId)
+  console.log('📤 slotData:', slotData)
+  console.log('📤 duration:', duration)
+
   const { date, hour } = slotData
   const startDateTime = new Date(date)
   startDateTime.setHours(hour, 0, 0, 0)
@@ -156,14 +161,22 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .filter('start_time', 'lt', endDateTime.toISOString())
     .filter('end_time', 'gt', startDateTime.toISOString())
 
-  if (checkError) return { error: checkError }
+  if (checkError) {
+    console.error('❌ Check error:', checkError)
+    return { error: checkError }
+  }
+  
   if (existingBookings.length > 0) {
+    console.warn('⚠️ Overlap detected:', existingBookings)
     return { error: { message: 'Slot sudah dibooking oleh orang lain' } }
   }
 
   // Generate PIN
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
-  if (pinError) return { error: pinError }
+  if (pinError) {
+    console.error('❌ PIN generation error:', pinError)
+    return { error: pinError }
+  }
 
   // Create booking
   const { data, error } = await supabase
@@ -182,10 +195,15 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .select()
     .single()
 
-  if (error) return { error }
+  if (error) {
+    console.error('❌ Booking creation error:', error)
+    return { error }
+  }
+
+  console.log('✅ Booking created:', data)
 
   // ============================================
-  // SEND TELEGRAM NOTIFICATION (FIXED)
+  // SEND TELEGRAM NOTIFICATION
   // ============================================
   try {
     console.log('📤 Getting profile for user:', userId)
@@ -201,19 +219,21 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     } else if (profile) {
       console.log('✅ Profile found:', profile.email)
       
-      // ✅ USE THE CORRECT FUNCTION CALL
-      const { error: invokeError } = await supabase.functions.invoke('send-telegram', {
+      console.log('📤 Sending to Telegram...')
+      
+      const { data: tgData, error: tgError } = await supabase.functions.invoke('send-telegram', {
         body: { booking: data, profile }
       })
       
-      if (invokeError) {
-        console.error('❌ Telegram invoke error:', invokeError)
+      if (tgError) {
+        console.error('❌ Telegram invoke error:', tgError)
       } else {
-        console.log('✅ Telegram sent successfully!')
+        console.log('✅ Telegram sent:', tgData)
       }
     }
   } catch (err) {
-    console.error('❌ Telegram error:', err.message)
+    console.error('❌ Telegram catch error:', err.message)
+    console.error('❌ Full error:', err)
   }
 
   return { data, error }
