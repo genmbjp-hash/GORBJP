@@ -5,6 +5,7 @@ import { useToast } from '../App'
 
 export default function Signup() {
   const [fullName, setFullName] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [block, setBlock] = useState('')
@@ -18,7 +19,6 @@ export default function Signup() {
     e.preventDefault()
     setLoading(true)
 
-    // Validation
     if (password.length < 6) {
       showToast('❌ Kata sandi minimal 6 karakter', 'error')
       setLoading(false)
@@ -41,6 +41,7 @@ export default function Signup() {
       email,
       password,
       fullName,
+      displayName,
       phone,
       block,
       houseNumber
@@ -82,16 +83,39 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="fullName">Nama Lengkap *</label>
+            <label className="form-label" htmlFor="fullName">
+              Nama Lengkap (untuk verifikasi) *
+            </label>
             <input
               type="text"
               id="fullName"
               className="form-input"
-              placeholder="Nama Anda"
+              placeholder="Nama sesuai KTP"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
             />
+            <p style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px' }}>
+              Nama lengkap hanya terlihat oleh admin
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="displayName">
+              Nama Panggilan (muncul di app) *
+            </label>
+            <input
+              type="text"
+              id="displayName"
+              className="form-input"
+              placeholder="Nama yang ingin ditampilkan"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+            />
+            <p style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px' }}>
+              Nama ini akan muncul di dashboard dan pesanan
+            </p>
           </div>
 
           <div className="form-group">
