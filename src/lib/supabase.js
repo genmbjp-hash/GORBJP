@@ -28,7 +28,6 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
   })
 
   if (!error && data.user) {
-    // Send Telegram notification for new registration
     try {
       const profile = {
         display_name: displayName,
@@ -47,7 +46,10 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify({ profile, type: 'register' })
+        body: JSON.stringify({ 
+          profile: profile,
+          type: 'register' 
+        })
       })
     } catch (err) {
       console.error('❌ Telegram registration error:', err)
