@@ -5,20 +5,24 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ============================================
-// AUTH FUNCTIONS
+// AUTH FUNCTIONS (UPDATED)
 // ============================================
 
-export async function signUp(email, password, fullName, phone = '') {
+export async function signUp(email, password, fullName, phone, block, houseNumber) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: { full_name: fullName, phone }
+      data: {
+        full_name: fullName,
+        phone: phone,
+        block: block,
+        house_number: houseNumber
+      }
     }
   })
   return { data, error }
 }
-
 export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
