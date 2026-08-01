@@ -70,67 +70,39 @@ export async function checkAvailability(date, startTime, durationHours = 2) {
   return { available: data.length === 0, data }
 }
 
-export async function createBookingWithCheckout(userId, slotData, duration) {
-  const { date, hour } = slotData
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
+export async function createBooking(userId, date, startTime, durationHours = 2) {
+  const startDateTime = new Date(`${date}T${startTime}`)
+  const endDateTime = new Date(startDateTime.getTime() + durationHours * 60 * 60 * 1000)
 
-  // Check for overlaps
-  const { data: existingBookings, error: checkError } = await supabase
-    .from('bookings')
-    .select('*')
-    .or(`status.eq.pending,status.eq.active`)
-    .filter('start_time', 'lt', endDateTime.toISOString())
-    .filter('end_time', 'gt', startDateTime.toISOString())
+  // Generate PIN using Supabase RPC
+  const { data: pinData, error: pinError } = await supabase
+    .rpc('generate_pin')
 
-  if (checkError) return { error: checkError }
-  if (existingBookings.length > 0) {
-    return { error: { message: 'Slot sudah dibooking oleh orang lain' } }
-  }
-
-  // Generate PIN
-  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
+  const pin = pinData
 
-  // Create booking
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
-      pin: pinData,
+      pin: pin,
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
-      duration_hours: duration,
-      price: 0,
-      payment_status: 'free',
-      payment_method: 'free',
+      duration_hours: durationHours,
       status: 'pending'
     })
     .select()
     .single()
 
-  if (error) return { error }
-
-  // === SEND TELEGRAM NOTIFICATION ===
-  try {
-    // Get user profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-
-    if (profile) {
-      // Don't wait for this - send in background
-      supabase.functions.invoke('send-telegram', {
-        body: { booking: data, profile }
-      }).catch(err => console.error('Telegram error:', err))
-    }
-  } catch (err) {
-    console.error('Failed to send Telegram notification:', err)
+  if (!error) {
+    await supabase
+      .from('activity_logs')
+      .insert({
+        user_id: userId,
+        event: 'booking_created',
+        pin: pin,
+        details: { start_time: startDateTime.toISOString(), end_time: endDateTime.toISOString() }
+      })
   }
 
   return { data, error }
@@ -400,7 +372,7 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // Check for overlaps one more time
+  // Check for overlaps
   const { data: existingBookings, error: checkError } = await supabase
     .from('bookings')
     .select('*')
@@ -417,7 +389,7 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
 
-  // Create booking with payment fields
+  // Create booking
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -431,28 +403,29 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
       payment_method: 'free',
       status: 'pending'
     })
-    .select(`
-      *,
-      profiles(full_name)
-    `)
+    .select()
     .single()
 
   if (error) return { error }
 
-  // Log activity
-  await supabase
-    .from('activity_logs')
-    .insert({
-      user_id: userId,
-      event: 'booking_created_free',
-      pin: pinData,
-      details: { 
-        start_time: startDateTime.toISOString(), 
-        end_time: endDateTime.toISOString(),
-        duration: duration,
-        price: 0
-      }
-    })
+  // === SEND TELEGRAM NOTIFICATION ===
+  try {
+    // Get user profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (profile) {
+      // Don't wait for this - send in background
+      supabase.functions.invoke('send-telegram', {
+        body: { booking: data, profile }
+      }).catch(err => console.error('Telegram error:', err))
+    }
+  } catch (err) {
+    console.error('Failed to send Telegram notification:', err)
+  }
 
   return { data, error }
 }
