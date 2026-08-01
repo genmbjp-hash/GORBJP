@@ -455,18 +455,23 @@ export async function getBookingsForDate(date) {
 
 export async function sendTelegramNotification(booking, profile) {
   try {
+    console.log('📤 Sending Telegram for PIN:', booking?.pin)
+    console.log('📤 Profile:', profile?.email)
+    
     const { data, error } = await supabase.functions.invoke('send-telegram', {
-      body: { booking, profile }
+      body: { booking, profile }  // ← This MUST be a JSON object
     })
     
     if (error) {
-      console.error('Telegram error:', error)
+      console.error('❌ Telegram invoke error:', error)
       return { error }
     }
     
+    console.log('✅ Telegram response:', data)
     return { data }
+    
   } catch (error) {
-    console.error('Telegram error:', error)
+    console.error('❌ Telegram catch error:', error.message)
     return { error }
   }
 }
