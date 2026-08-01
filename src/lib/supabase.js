@@ -448,3 +448,24 @@ export async function getBookingsForDate(date) {
 
   return { data, error }
 }
+// ============================================
+// TELEGRAM NOTIFICATION
+// ============================================
+
+export async function sendTelegramNotification(booking, profile) {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-telegram', {
+      body: { booking, profile }
+    })
+    
+    if (error) {
+      console.error('Telegram error:', error)
+      return { error }
+    }
+    
+    return { data }
+  } catch (error) {
+    console.error('Telegram error:', error)
+    return { error }
+  }
+}
