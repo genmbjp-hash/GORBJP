@@ -30,6 +30,12 @@ export default function Checkout({ user }) {
   async function handleConfirmBooking() {
     setLoading(true)
 
+    console.log('📤 Checkout: Starting booking...')
+    console.log('📤 User ID:', user.id)
+    console.log('📤 Date:', date.toISOString().split('T')[0])
+    console.log('📤 Hour:', slot.hour)
+    console.log('📤 Duration:', duration)
+
     const { data, error } = await createBookingWithCheckout(
       user.id,
       { date: date.toISOString().split('T')[0], hour: slot.hour },
@@ -37,12 +43,14 @@ export default function Checkout({ user }) {
     )
 
     if (error) {
+      console.error('❌ Checkout error:', error)
       showToast('❌ ' + error.message, 'error')
       setLoading(false)
       return
     }
 
-    // Navigate to confirmation page
+    console.log('✅ Checkout success:', data)
+
     navigate('/confirmation', {
       state: { booking: data }
     })
