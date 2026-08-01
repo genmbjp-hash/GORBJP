@@ -408,23 +408,36 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
 
   if (error) return { error }
 
-  // === SEND TELEGRAM NOTIFICATION ===
+  // ============================================
+  // SEND TELEGRAM NOTIFICATION
+  // ============================================
   try {
-    // Get user profile
-    const { data: profile } = await supabase
+    console.log('📤 Getting profile for user:', userId)
+    
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
 
-    if (profile) {
-      // Don't wait for this - send in background
-      supabase.functions.invoke('send-telegram', {
+    if (profileError) {
+      console.error('❌ Profile fetch error:', profileError)
+    } else if (profile) {
+      console.log('✅ Profile found for:', profile.email)
+      
+      // IMPORTANT: Use the exact function call
+      const { error: invokeError } = await supabase.functions.invoke('send-telegram', {
         body: { booking: data, profile }
-      }).catch(err => console.error('Telegram error:', err))
+      })
+      
+      if (invokeError) {
+        console.error('❌ Telegram invoke error:', invokeError)
+      } else {
+        console.log('✅ Telegram sent successfully!')
+      }
     }
   } catch (err) {
-    console.error('Failed to send Telegram notification:', err)
+    console.error('❌ Telegram catch error:', err.message)
   }
 
   return { data, error }
