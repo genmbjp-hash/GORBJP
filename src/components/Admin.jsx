@@ -72,7 +72,6 @@ export default function Admin({ user }) {
       const todayBookings = data.filter(b => new Date(b.start_time).toDateString() === today)
       const active = data.filter(b => b.status === 'active' || b.status === 'pending')
       
-      // Count new bookings (last 10 minutes)
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
       const newBookings = data.filter(b => new Date(b.created_at) > tenMinutesAgo)
       setNewBookingsCount(newBookings.length)
@@ -276,19 +275,20 @@ export default function Admin({ user }) {
         ) : (
           pendingUsers.map(u => (
             <div key={u.id} className="user-item">
-<div className="user-info">
-  <div className="user-name">
-    {u.display_name || u.full_name || 'Unknown'}
-    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginLeft: '8px' }}>
-      (Nama lengkap: {u.full_name})
-    </span>
-  </div>
-  <div className="user-email">{u.email}</div>
-  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-    📞 {u.phone || '-'} • Blok {u.block || '-'} No. {u.house_number || '-'}
-  </div>
-</div>
-                <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>Daftar: {formatDate(u.created_at)}</div>
+              <div className="user-info">
+                <div className="user-name">
+                  {u.display_name || u.full_name || 'Unknown'}
+                  <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginLeft: '8px' }}>
+                    (Nama lengkap: {u.full_name})
+                  </span>
+                </div>
+                <div className="user-email">{u.email}</div>
+                <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+                  📞 {u.phone || '-'} • Blok {u.block || '-'} No. {u.house_number || '-'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '4px' }}>
+                  Daftar: {formatDate(u.created_at)}
+                </div>
               </div>
               <div className="user-actions">
                 <button onClick={() => handleApprove(u.id)} className="btn btn-success btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
