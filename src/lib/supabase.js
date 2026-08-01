@@ -116,30 +116,42 @@ export async function createBooking(userId, date, startTime, durationHours = 2) 
 // CHECKOUT + TELEGRAM NOTIFICATION
 // ============================================
 
+// ============================================
+// TELEGRAM NOTIFICATION (Using direct fetch)
+// ============================================
+
 export async function sendTelegramNotification(booking, profile) {
   try {
-    console.log('📤 Sending Telegram notification...')
+    console.log('📤 Sending Telegram via direct fetch...')
     console.log('📤 Booking PIN:', booking?.pin)
     console.log('📤 Profile email:', profile?.email)
     
-    const { data, error } = await supabase.functions.invoke('send-telegram', {
-      body: { booking, profile }
+    const EDGE_FUNCTION_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co/functions/v1/send-telegram'
+    
+    const response = await fetch(EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ booking, profile })
     })
     
-    if (error) {
-      console.error('❌ Telegram invoke error:', error)
-      return { error }
+    const data = await response.json()
+    
+    if (!response.ok) {
+      console.error('❌ Telegram response error:', data)
+      return { error: data }
     }
     
-    console.log('✅ Telegram response:', data)
+    console.log('✅ Telegram sent:', data)
     return { data }
     
   } catch (error) {
-    console.error('❌ Telegram catch error:', error.message)
+    console.error('❌ Telegram fetch error:', error.message)
     return { error }
   }
 }
-
 export async function createBookingWithCheckout(userId, slotData, duration) {
   console.log('📤 createBookingWithCheckout called')
   console.log('📤 userId:', userId)
