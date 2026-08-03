@@ -268,6 +268,7 @@ export async function getBookingsForDate(date) {
   const endDate = new Date(date)
   endDate.setHours(23, 59, 59, 999)
 
+  // Include ALL statuses so admin bookings (completed) are visible
   const { data, error } = await supabase
     .from('bookings')
     .select(`
@@ -276,7 +277,8 @@ export async function getBookingsForDate(date) {
     `)
     .gte('start_time', startDate.toISOString())
     .lte('start_time', endDate.toISOString())
-    .or(`status.eq.pending,status.eq.active,status.eq.completed`)
+    // ✅ Include all statuses so admin bookings are visible
+    .in('status', ['pending', 'active', 'completed'])
 
   return { data, error }
 }
