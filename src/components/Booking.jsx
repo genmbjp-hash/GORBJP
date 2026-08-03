@@ -305,20 +305,35 @@ export default function Booking({ user }) {
   }
 
   function handleProceedToCheckout() {
-    if (selectedSlots.length === 0) {
-      showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
-      return
-    }
-    const range = getSelectedStartEnd()
-    navigate('/checkout', {
-      state: {
-        date: selectedDate,
-        slot: { hour: selectedSlots[0].hour, startTime: range.start.toISOString(), endTime: range.end.toISOString() },
-        duration: getSelectedDuration()
-      }
-    })
+  if (selectedSlots.length === 0) {
+    showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
+    return
   }
 
+  const range = getSelectedStartEnd()
+
+  // ✅ Ensure date is a valid Date object
+  const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate)
+
+  if (isNaN(dateObj.getTime())) {
+    showToast('❌ Tanggal tidak valid', 'error')
+    return
+  }
+
+  console.log('📅 Navigating to checkout with date:', dateObj.toISOString().split('T')[0])
+
+  navigate('/checkout', {
+    state: {
+      date: dateObj,
+      slot: {
+        hour: selectedSlots[0].hour,
+        startTime: range.start.toISOString(),
+        endTime: range.end.toISOString()
+      },
+      duration: getSelectedDuration()
+    }
+  })
+}
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
