@@ -103,7 +103,7 @@ export default function Booking({ user }) {
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
 
-      // ✅ Find ANY booking that overlaps this slot
+      // Find ANY booking that overlaps this slot
       const booking = existingBookings.find(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
@@ -115,7 +115,7 @@ export default function Booking({ user }) {
       const isPast = isToday && startTime < now
       const closureReason = booking?.closure_reason || null
 
-      // ✅ isAvailable is FALSE for ANY booking (admin or customer)
+      // isAvailable is FALSE for ANY booking (admin or customer)
       const isAvailable = !isBooked && !isPast
 
       slots.push({
@@ -174,13 +174,13 @@ export default function Booking({ user }) {
 
   // Customer: select slots
   function handleSlotClick(slot) {
-    // ✅ BLOCKED: if slot is not available (includes admin bookings)
+    // BLOCKED: if slot is not available (includes admin bookings)
     if (!slot.isAvailable) {
       showToast('⚠️ Slot tidak tersedia', 'warning')
       return
     }
 
-    // ✅ Additional check: if slot is admin booking, block it
+    // Additional check: if slot is admin booking, block it
     if (slot.isAdminBooking) {
       showToast('⚠️ Slot ditutup oleh admin', 'warning')
       return
@@ -437,7 +437,7 @@ export default function Booking({ user }) {
     const duration = getSelectedDuration()
     const range = getSelectedStartEnd()
 
-    // ✅ Check if ANY selected slot is not available or is admin booking
+    // Check if ANY selected slot is not available or is admin booking
     const allAvailable = selectedSlots.every(s => s.isAvailable && !s.isAdminBooking)
     if (!allAvailable) {
       showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
@@ -565,4 +565,201 @@ export default function Booking({ user }) {
             background: 'white',
             borderRadius: '12px',
             padding: '24px',
-            maxWidth:
+            maxWidth: '400px',
+            width: '100%'
+          }}>
+            <h3 style={{ marginBottom: '12px' }}>⛔ Alasan Penutupan</h3>
+            <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+              Tambahkan alasan (opsional)
+            </p>
+            <input
+              type="text"
+              value={closureReason}
+              onChange={(e) => setClosureReason(e.target.value)}
+              placeholder="Contoh: Maintenance, Private Event, dll"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '2px solid var(--gray-200)',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                marginBottom: '16px'
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                onClick={() => { setShowReasonModal(false); setPendingAction(null); setClosureReason(''); }}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={executeAdminAction}
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+              >
+                Konfirmasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Range Display (Customer only) */}
+      {!isAdmin && selectedSlots.length > 0 && range && (
+        <div className="card" style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <span style={{ fontWeight: 600 }}>
+                ✅ {formatTime(range.start)} - {formatTime(range.end)}
+              </span>
+              <span style={{ marginLeft: '8px', fontSize: '14px', color: 'var(--gray-500)' }}>
+                ({duration} jam)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slots */}
+      <div className="card">
+        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>
+          📋 Daftar Slot
+          {loading && <span style={{ fontSize: '12px', color: 'var(--gray-400)', marginLeft: '8px' }}>⏳ Memuat...</span>}
+        </h3>
+
+        {visibleSlots.length === 0 && !loading ? (
+          <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>
+            {selectedDate.toDateString() === new Date().toDateString() 
+              ? '⏰ Tidak ada slot tersisa untuk hari ini' 
+              : 'Tidak ada slot untuk hari ini'}
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {visibleSlots.map((slot) => {
+              const isSelected = isSlotSelected(slot)
+
+              let bgColor = '#F3F4F6'
+              let borderColor = 'var(--gray-200)'
+              let textColor = 'var(--gray-600)'
+
+              if (isSelected && isAdmin) {
+                bgColor = '#DBEAFE'
+                borderColor = 'var(--primary)'
+                textColor = 'var(--primary)'
+              } else if (slot.isBooked) {
+                if (slot.isAdminBooking) {
+                  bgColor = '#FEF3C7'
+                  borderColor = '#F59E0B'
+                  textColor = '#92400E'
+                } else {
+                  bgColor = '#FEE2E2'
+                  borderColor = '#FCA5A5'
+                  textColor = 'var(--danger)'
+                }
+              } else {
+                bgColor = '#D1FAE5'
+                borderColor = 'var(--success)'
+                textColor = 'var(--success)'
+              }
+
+              // Determine cursor based on role and slot state
+              let cursor = 'default'
+              if (isAdmin && slot.isAvailable) cursor = 'pointer'
+              else if (isAdmin && slot.isBooked && slot.isAdminBooking) cursor = 'pointer'
+              else if (!isAdmin && slot.isAvailable) cursor = 'pointer'
+
+              return (
+                <div 
+                  key={slot.hour}
+                  onClick={() => {
+                    if (isAdmin && slot.isAvailable) {
+                      handleAdminSlotToggle(slot)
+                    } else if (!isAdmin && slot.isAvailable) {
+                      handleSlotClick(slot)
+                    } else if (isAdmin && slot.isBooked && slot.isAdminBooking) {
+                      handleAdminReopen(slot)
+                    } else if (!isAdmin && slot.isBooked) {
+                      showToast('⚠️ Slot tidak tersedia', 'warning')
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    backgroundColor: bgColor,
+                    border: `2px solid ${borderColor}`,
+                    cursor: cursor,
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: textColor }}>
+                    {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                  </div>
+                  
+                  <div style={{ flex: 1 }}>
+                    {slot.isBooked ? (
+                      slot.isAdminBooking ? (
+                        <span style={{ color: '#92400E', fontWeight: 500 }}>
+                          🔴 {slot.closureReason || 'Tidak Tersedia'} 
+                          {isAdmin && ' (Admin)'}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--danger)', fontWeight: 500 }}>
+                          🔴 Booked by <strong>{slot.bookedBy || 'User'}</strong>
+                        </span>
+                      )
+                    ) : isSelected && isAdmin ? (
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                        ✅ Dipilih
+                      </span>
+                    ) : isSelected && !isAdmin ? (
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                        ✅ Dipilih
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--success)', fontWeight: 500 }}>
+                        🟢 Tersedia
+                      </span>
+                    )}
+                  </div>
+
+                  {isSelected && !isAdmin && (
+                    <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>
+                      {selectedSlots.length > 1 ? `(${selectedSlots.length} jam)` : `(1 jam)`}
+                    </span>
+                  )}
+
+                  {isSelected && isAdmin && (
+                    <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>
+                      ✓
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Book Button (Customer only) */}
+      {!isAdmin && (
+        <button 
+          onClick={handleProceedToCheckout} 
+          className="btn btn-primary"
+          disabled={selectedSlots.length === 0 || loading}
+          style={{ marginTop: '16px' }}
+        >
+          {selectedSlots.length === 0 ? 'Pilih slot terlebih dahulu' : '📖 Pesan Sekarang'}
+        </button>
+      )}
+    </div>
+  )
+}
