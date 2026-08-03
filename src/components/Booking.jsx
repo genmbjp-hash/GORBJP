@@ -140,35 +140,41 @@ export default function Booking({ user }) {
   }
 
   function handleSlotClick(slot) {
-    if (!slot.isAvailable) return
+  if (!slot.isAvailable) return
 
-    // Check if clicking the same slot to deselect
-    if (selectedSlots.length === 1 && selectedSlots[0].hour === slot.hour) {
-      setSelectedSlots([])
-      return
-    }
-
-    if (selectedSlots.length === 0) {
-      setSelectedSlots([slot])
-      return
-    }
-
-    if (selectedSlots.length === 1) {
-      const firstSlot = selectedSlots[0]
-      
-      const isAdjacent = slot.hour === firstSlot.hour + 1
-      
-      const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
-      const isNextAvailable = nextSlot && nextSlot.isAvailable
-      
-      if (isAdjacent && isNextAvailable && slot.hour === firstSlot.hour + 1) {
-        setSelectedSlots([firstSlot, slot])
-      } else {
-        setSelectedSlots([slot])
-      }
-    }
+  // If 2 slots selected, clicking either one clears both
+  if (selectedSlots.length === 2) {
+    setSelectedSlots([])
+    return
   }
 
+  // If 1 slot selected, clicking it again deselects it
+  if (selectedSlots.length === 1 && selectedSlots[0].hour === slot.hour) {
+    setSelectedSlots([])
+    return
+  }
+
+  if (selectedSlots.length === 0) {
+    setSelectedSlots([slot])
+    return
+  }
+
+  if (selectedSlots.length === 1) {
+    const firstSlot = selectedSlots[0]
+    
+    const isAdjacent = slot.hour === firstSlot.hour + 1
+    
+    const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
+    const isNextAvailable = nextSlot && nextSlot.isAvailable
+    
+    if (isAdjacent && isNextAvailable && slot.hour === firstSlot.hour + 1) {
+      setSelectedSlots([firstSlot, slot])
+    } else {
+      setSelectedSlots([slot])
+    }
+  }
+}
+  
   function isSlotSelected(slot) {
     return selectedSlots.some(s => s.hour === slot.hour)
   }
