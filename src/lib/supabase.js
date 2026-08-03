@@ -97,7 +97,7 @@ export async function checkAvailability(date, startTime, durationHours = 2) {
   const { data, error } = await supabase
     .from('bookings')
     .select('*')
-    .or(`status.eq.pending,status.eq.active`)
+    .in('status', ['pending', 'active', 'completed'])
     .filter('start_time', 'lt', endDateTime.toISOString())
     .filter('end_time', 'gt', startDateTime.toISOString())
 
@@ -143,7 +143,7 @@ export async function createBooking(userId, date, startTime, durationHours = 2) 
 }
 
 // ============================================
-// CREATE BOOKING WITH CHECKOUT (DIRECT FETCH FOR TELEGRAM)
+// CREATE BOOKING WITH CHECKOUT
 // ============================================
 
 export async function createBookingWithCheckout(userId, slotData, duration) {
@@ -154,11 +154,11 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // Check for overlaps
+  // ✅ Check ALL bookings that block slots (including admin closures)
   const { data: existingBookings, error: checkError } = await supabase
     .from('bookings')
     .select('*')
-    .or(`status.eq.pending,status.eq.active`)
+    .in('status', ['pending', 'active', 'completed'])
     .filter('start_time', 'lt', endDateTime.toISOString())
     .filter('end_time', 'gt', startDateTime.toISOString())
 
@@ -174,10 +174,7 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
 
   // Generate PIN
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
-  if (pinError) {
-    console.error('❌ PIN generation error:', pinError)
-    return { error: pinError }
-  }
+  if (pinError) return { error: pinError }
 
   // Create booking
   const { data, error } = await supabase
@@ -196,13 +193,10 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .select()
     .single()
 
-  if (error) {
-    console.error('❌ Booking creation error:', error)
-    return { error }
-  }
+  if (error) return { error }
 
   // ============================================
-  // SEND TELEGRAM NOTIFICATION (DIRECT FETCH)
+  // SEND TELEGRAM NOTIFICATION
   // ============================================
   try {
     const { data: profile, error: profileError } = await supabase
@@ -211,30 +205,24 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
       .eq('id', userId)
       .single()
 
-    if (profileError) {
-      console.error('❌ Profile fetch error:', profileError)
-    } else if (profile) {
-      
+    if (profile) {
       const EDGE_FUNCTION_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co/functions/v1/send-telegram'
-      const response = await fetch(EDGE_FUNCTION_URL, {
+      
+      await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify({ booking: data, profile })
+        body: JSON.stringify({ 
+          booking: data, 
+          profile: profile,
+          type: 'booking' 
+        })
       })
-      
-      const tgResult = await response.json()
-      
-      if (!response.ok) {
-        console.error('❌ Telegram response error:', tgResult)
-      } else {
-        console.log('✅ Telegram sent successfully!', tgResult)
-      }
     }
   } catch (err) {
-    console.error('❌ Telegram catch error:', err.message)
+    // Silent fail — Telegram notification is not critical
   }
 
   return { data, error }
@@ -268,7 +256,7 @@ export async function getBookingsForDate(date) {
   const endDate = new Date(date)
   endDate.setHours(23, 59, 59, 999)
 
-  // Include ALL statuses so admin bookings (completed) are visible
+  // ✅ Include ALL statuses so admin bookings are visible
   const { data, error } = await supabase
     .from('bookings')
     .select(`
@@ -277,7 +265,6 @@ export async function getBookingsForDate(date) {
     `)
     .gte('start_time', startDate.toISOString())
     .lte('start_time', endDate.toISOString())
-    // ✅ Include all statuses so admin bookings are visible
     .in('status', ['pending', 'active', 'completed'])
 
   return { data, error }
