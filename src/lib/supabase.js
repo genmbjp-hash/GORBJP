@@ -77,6 +77,23 @@ export async function getBookingsForDate(date) {
   return { data, error }
 }
 
+export async function getAllBookings() {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*, profiles(full_name, display_name, email, phone, block, house_number)')
+    .order('start_time', { ascending: false })
+  return { data, error }
+}
+
+export async function getUserBookings(userId) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('user_id', userId)
+    .order('start_time', { ascending: true })
+  return { data, error }
+}
+
 export async function createBookingWithCheckout(userId, slotData, duration) {
   const { date, hour } = slotData
   const startDateTime = new Date(date)
@@ -84,7 +101,6 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // Check overlap
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
@@ -97,11 +113,9 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
-  // Generate PIN
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
 
-  // Create booking
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -132,15 +146,6 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     } catch (err) { /* silent fail */ }
   }
 
-  return { data, error }
-}
-
-export async function getUserBookings(userId) {
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('*')
-    .eq('user_id', userId)
-    .order('start_time', { ascending: true })
   return { data, error }
 }
 
