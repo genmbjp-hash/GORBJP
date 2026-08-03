@@ -16,6 +16,9 @@ export default function Checkout({ user }) {
     return null
   }
 
+  // ✅ Extract date string correctly
+  const dateStr = date instanceof Date ? date.toISOString().split('T')[0] : date.split('T')[0]
+
   const startTime = new Date(slot.startTime)
   const endTime = new Date(slot.endTime)
 
@@ -32,7 +35,10 @@ export default function Checkout({ user }) {
 
     const { data, error } = await createBookingWithCheckout(
       user.id,
-      { date: date.toISOString ? date.toISOString().split('T')[0] : date.split('T')[0], hour: slot.hour },
+      { 
+        date: dateStr,  // ✅ Use the extracted date string
+        hour: slot.hour 
+      },
       duration
     )
 
@@ -68,7 +74,9 @@ export default function Checkout({ user }) {
         <div style={{ background: 'var(--primary-bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>📅 Tanggal</span>
-            <span style={{ fontWeight: 600 }}>{formatDateDisplay(date instanceof Date ? date : new Date(date))}</span>
+            <span style={{ fontWeight: 600 }}>
+              {date instanceof Date ? formatDateDisplay(date) : formatDateDisplay(new Date(date))}
+            </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>⏰ Waktu</span>
