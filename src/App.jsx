@@ -99,12 +99,12 @@ function App() {
             )
           } />
           <Route path="/booking" element={
-            user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-              <Booking user={user} />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
+  user && profile?.status === 'approved' ? (
+    <Booking user={user} />
+  ) : (
+    <Navigate to="/" />
+  )
+} />
           <Route path="/checkout" element={
   user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
     <Checkout user={user} />
