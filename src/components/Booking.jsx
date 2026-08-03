@@ -94,6 +94,9 @@ export default function Booking({ user }) {
       const isPast = isToday && startTime < now
       const closureReason = booking?.closure_reason || null
 
+      // IMPORTANT: isAvailable is FALSE for ANY booking (admin or customer)
+      const isAvailable = !isBooked && !isPast
+
       slots.push({
         hour,
         startTime,
@@ -101,7 +104,7 @@ export default function Booking({ user }) {
         isBooked,
         isAdminBooking,
         isPast,
-        isAvailable: !isBooked && !isPast,
+        isAvailable,  // ← This blocks ALL bookings for customers
         bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
         bookingId: booking?.id || null,
         closureReason: closureReason
@@ -150,7 +153,11 @@ export default function Booking({ user }) {
 
   // Customer: select slots
   function handleSlotClick(slot) {
-    if (!slot.isAvailable) return
+    // BLOCKED: if slot is not available (includes admin bookings)
+    if (!slot.isAvailable) {
+      showToast('⚠️ Slot tidak tersedia', 'warning')
+      return
+    }
 
     if (selectedSlots.length === 2) {
       setSelectedSlots([])
@@ -303,7 +310,6 @@ export default function Booking({ user }) {
 
     try {
       if (pendingAction === 'close') {
-        // Close selected slots
         const slotsToClose = selectedSlots
         const bookingsToInsert = slotsToClose.map(slot => ({
           user_id: user.id,
@@ -340,7 +346,6 @@ export default function Booking({ user }) {
           await supabase.from('bookings').delete().in('id', ids)
         }
 
-        // Create admin bookings for all slots
         const allSlots = bookingSlots.filter(s => !s.isPast)
         const bookingsToInsert = allSlots.map(slot => ({
           user_id: user.id,
@@ -428,7 +433,6 @@ export default function Booking({ user }) {
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
 
-  // Filter slots: only show available or booked (but hide past)
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
 
   return (
@@ -633,6 +637,12 @@ export default function Booking({ user }) {
                 textColor = 'var(--success)'
               }
 
+              // Determine cursor based on role and slot state
+              let cursor = 'default'
+              if (isAdmin && slot.isAvailable) cursor = 'pointer'
+              else if (isAdmin && slot.isBooked && slot.isAdminBooking) cursor = 'pointer'
+              else if (!isAdmin && slot.isAvailable) cursor = 'pointer'
+
               return (
                 <div 
                   key={slot.hour}
@@ -643,6 +653,8 @@ export default function Booking({ user }) {
                       handleSlotClick(slot)
                     } else if (isAdmin && slot.isBooked && slot.isAdminBooking) {
                       handleAdminReopen(slot)
+                    } else if (!isAdmin && slot.isBooked) {
+                      showToast('⚠️ Slot tidak tersedia', 'warning')
                     }
                   }}
                   style={{
@@ -653,9 +665,7 @@ export default function Booking({ user }) {
                     borderRadius: '8px',
                     backgroundColor: bgColor,
                     border: `2px solid ${borderColor}`,
-                    cursor: (isAdmin && slot.isAvailable) || 
-                            (isAdmin && slot.isBooked && slot.isAdminBooking) ||
-                            (!isAdmin && slot.isAvailable) ? 'pointer' : 'default',
+                    cursor: cursor,
                     flexWrap: 'wrap',
                     gap: '8px',
                     transition: 'all 0.2s ease'
