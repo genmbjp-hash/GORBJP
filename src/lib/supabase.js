@@ -96,24 +96,20 @@ export async function getUserBookings(userId) {
 
 export async function createBookingWithCheckout(userId, slotData, duration) {
   const { date, hour } = slotData
-  
-  // ✅ Create date from the passed date string
+
+  // Parse the date correctly
   const startDateTime = new Date(date)
   startDateTime.setHours(hour, 0, 0, 0)
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // 🔍 Debug (remove after testing)
-  console.log('📅 Booking date:', date)
-  console.log('📅 startDateTime:', startDateTime)
-  console.log('📅 endDateTime:', endDateTime)
-
-  // ✅ Check overlap on the SAME DATE only
+  // ✅ Date range for the selected day (start of day to end of day)
   const startOfDay = new Date(date)
   startOfDay.setHours(0, 0, 0, 0)
   const endOfDay = new Date(date)
   endOfDay.setHours(23, 59, 59, 999)
 
+  // ✅ Check for overlapping bookings ONLY on the same date
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
@@ -123,8 +119,13 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .filter('start_time', 'lt', endDateTime.toISOString())
     .filter('end_time', 'gt', startDateTime.toISOString())
 
-  if (checkError) return { error: checkError }
+  if (checkError) {
+    console.error('❌ Check error:', checkError)
+    return { error: checkError }
+  }
+  
   if (existing.length > 0) {
+    console.log('⚠️ Overlap detected:', existing)
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
@@ -151,16 +152,29 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
 
   if (!error) {
     try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
       if (profile) {
-        const EDGE_FUNCTION_URL = 'https://your-project.supabase.co/functions/v1/send-telegram'
+        const EDGE_FUNCTION_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co/functions/v1/send-telegram'
         await fetch(EDGE_FUNCTION_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ booking: data, profile, type: 'booking' })
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            booking: data,
+            profile: profile,
+            type: 'booking'
+          })
         })
       }
-    } catch (err) { /* silent fail */ }
+    } catch (err) {
+      // Silent fail — Telegram notification is not critical
+    }
   }
 
   return { data, error }
