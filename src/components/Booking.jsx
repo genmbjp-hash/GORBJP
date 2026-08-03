@@ -10,6 +10,9 @@ export default function Booking({ user }) {
   const [bookingSlots, setBookingSlots] = useState([])
   const [selectedSlots, setSelectedSlots] = useState([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [showReasonModal, setShowReasonModal] = useState(false)
+  const [closureReason, setClosureReason] = useState('')
+  const [pendingAction, setPendingAction] = useState(null)
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -26,7 +29,6 @@ export default function Booking({ user }) {
   maxDate.setHours(0, 0, 0, 0)
 
   useEffect(() => {
-    // Check if user is admin
     const checkAdmin = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -90,6 +92,7 @@ export default function Booking({ user }) {
       const isBooked = !!booking
       const isAdminBooking = booking?.is_admin_booking || false
       const isPast = isToday && startTime < now
+      const closureReason = booking?.closure_reason || null
 
       slots.push({
         hour,
@@ -100,7 +103,8 @@ export default function Booking({ user }) {
         isPast,
         isAvailable: !isBooked && !isPast,
         bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
-        bookingId: booking?.id || null
+        bookingId: booking?.id || null,
+        closureReason: closureReason
       })
     }
 
@@ -144,7 +148,7 @@ export default function Booking({ user }) {
     setSelectedSlots([])
   }
 
-  // Handle slot click for customers
+  // Customer: select slots
   function handleSlotClick(slot) {
     if (!slot.isAvailable) return
 
@@ -177,63 +181,63 @@ export default function Booking({ user }) {
     }
   }
 
-  // Handle admin booking
-  async function handleAdminBook(slot) {
+  // Admin: toggle slot selection
+  function handleAdminSlotToggle(slot) {
     if (!isAdmin) return
-    if (!slot.isAvailable) return
+    if (slot.isBooked) return
 
+    const index = selectedSlots.findIndex(s => s.hour === slot.hour)
+    if (index >= 0) {
+      const newSelected = [...selectedSlots]
+      newSelected.splice(index, 1)
+      setSelectedSlots(newSelected)
+    } else {
+      setSelectedSlots([...selectedSlots, slot])
+    }
+  }
+
+  // Admin: close selected slots
+  async function handleAdminClose() {
+    if (selectedSlots.length === 0) {
+      showToast('❌ Pilih slot terlebih dahulu', 'warning')
+      return
+    }
+
+    setPendingAction('close')
+    setClosureReason('')
+    setShowReasonModal(true)
+  }
+
+  // Admin: close entire day
+  async function handleCloseEntireDay() {
     const confirm = window.confirm(
-      `Apakah Anda yakin ingin menutup slot ini?\n\n` +
-      `📅 ${formatDateDisplay(selectedDate)}\n` +
-      `⏰ ${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}\n\n` +
-      `Slot akan ditutup untuk umum dan tidak dapat dibooking oleh customer.`
+      `⚠️ PERINGATAN!\n\n` +
+      `Anda akan menutup SEMUA slot untuk hari ini:\n` +
+      `${formatDateDisplay(selectedDate)}\n\n` +
+      `Ini akan membatalkan semua booking customer yang sudah ada.\n\n` +
+      `Lanjutkan?`
     )
 
     if (!confirm) return
 
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          pin: null,
-          start_time: slot.startTime.toISOString(),
-          end_time: slot.endTime.toISOString(),
-          duration_hours: 1,
-          is_admin_booking: true,
-          status: 'completed',
-          price: 0,
-          payment_status: 'free',
-          payment_method: 'admin'
-        })
-        .select()
-        .single()
-
-      if (error) {
-        showToast('❌ Gagal menutup slot: ' + error.message, 'error')
-        return
-      }
-
-      showToast('✅ Slot ditutup', 'success')
-      loadBookings()
-    } catch (error) {
-      showToast('❌ Gagal menutup slot', 'error')
-    }
+    setPendingAction('closeAll')
+    setClosureReason('')
+    setShowReasonModal(true)
   }
 
-  // Handle admin cancel/delete
-  async function handleAdminCancel(slot) {
+  // Admin: reopen individual slot
+  async function handleAdminReopen(slot) {
     if (!isAdmin) return
     if (!slot.isBooked) return
     if (!slot.isAdminBooking) {
-      showToast('❌ Anda hanya bisa membatalkan booking admin sendiri', 'warning')
+      showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
       return
     }
 
     const confirm = window.confirm(
-      `Apakah Anda yakin ingin membuka kembali slot ini?\n\n` +
-      `📅 ${formatDateDisplay(selectedDate)}\n` +
-      `⏰ ${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`
+      `Apakah Anda yakin ingin membuka slot ini?\n\n` +
+      `${formatDateDisplay(selectedDate)}\n` +
+      `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`
     )
 
     if (!confirm) return
@@ -254,6 +258,123 @@ export default function Booking({ user }) {
     } catch (error) {
       showToast('❌ Gagal membuka slot', 'error')
     }
+  }
+
+  // Admin: reopen entire day
+  async function handleReopenEntireDay() {
+    if (!isAdmin) return
+
+    const adminBookings = bookings.filter(b => b.is_admin_booking === true)
+    if (adminBookings.length === 0) {
+      showToast('ℹ️ Tidak ada slot admin untuk dibuka', 'info')
+      return
+    }
+
+    const confirm = window.confirm(
+      `Apakah Anda yakin ingin membuka SEMUA slot yang ditutup admin?\n\n` +
+      `${formatDateDisplay(selectedDate)}\n` +
+      `Jumlah slot: ${adminBookings.length}`
+    )
+
+    if (!confirm) return
+
+    try {
+      const ids = adminBookings.map(b => b.id)
+      const { error } = await supabase
+        .from('bookings')
+        .delete()
+        .in('id', ids)
+
+      if (error) {
+        showToast('❌ Gagal membuka slot: ' + error.message, 'error')
+        return
+      }
+
+      showToast(`✅ ${ids.length} slot dibuka kembali`, 'success')
+      loadBookings()
+    } catch (error) {
+      showToast('❌ Gagal membuka slot', 'error')
+    }
+  }
+
+  // Execute admin action with reason
+  async function executeAdminAction() {
+    setShowReasonModal(false)
+
+    try {
+      if (pendingAction === 'close') {
+        // Close selected slots
+        const slotsToClose = selectedSlots
+        const bookingsToInsert = slotsToClose.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'completed',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || null
+        }))
+
+        const { error } = await supabase
+          .from('bookings')
+          .insert(bookingsToInsert)
+
+        if (error) {
+          showToast('❌ Gagal menutup slot: ' + error.message, 'error')
+          return
+        }
+
+        showToast(`✅ ${slotsToClose.length} slot ditutup`, 'success')
+        setSelectedSlots([])
+        loadBookings()
+      } else if (pendingAction === 'closeAll') {
+        // Close entire day - delete all customer bookings first
+        const customerBookings = bookings.filter(b => b.is_admin_booking === false)
+        
+        if (customerBookings.length > 0) {
+          const ids = customerBookings.map(b => b.id)
+          await supabase.from('bookings').delete().in('id', ids)
+        }
+
+        // Create admin bookings for all slots
+        const allSlots = bookingSlots.filter(s => !s.isPast)
+        const bookingsToInsert = allSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'completed',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || 'Tutup Hari Ini'
+        }))
+
+        const { error } = await supabase
+          .from('bookings')
+          .insert(bookingsToInsert)
+
+        if (error) {
+          showToast('❌ Gagal menutup hari: ' + error.message, 'error')
+          return
+        }
+
+        showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
+        setSelectedSlots([])
+        loadBookings()
+      }
+    } catch (error) {
+      showToast('❌ Gagal menjalankan aksi', 'error')
+    }
+
+    setPendingAction(null)
+    setClosureReason('')
   }
 
   function isSlotSelected(slot) {
@@ -353,17 +474,109 @@ export default function Booking({ user }) {
         </div>
       </div>
 
-      {/* Admin badge */}
+      {/* Admin Controls */}
       {isAdmin && (
         <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
-          <p style={{ fontSize: '14px', color: '#92400E', margin: 0 }}>
-            👑 Mode Admin — Klik "Book" pada slot untuk menutup venue
-          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '14px', color: '#92400E', marginRight: '8px' }}>
+              👑 Admin Mode
+            </span>
+            <button 
+              onClick={handleCloseEntireDay} 
+              className="btn btn-danger btn-sm"
+              style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}
+            >
+              📅 Tutup Hari Ini
+            </button>
+            <button 
+              onClick={handleReopenEntireDay} 
+              className="btn btn-success btn-sm"
+              style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}
+            >
+              📅 Buka Hari Ini
+            </button>
+            {selectedSlots.length > 0 && (
+              <button 
+                onClick={handleAdminClose} 
+                className="btn btn-warning btn-sm"
+                style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}
+              >
+                Tutup {selectedSlots.length} Slot
+              </button>
+            )}
+          </div>
+          {selectedSlots.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '13px', color: '#92400E' }}>
+              ✅ {selectedSlots.length} slot dipilih
+            </div>
+          )}
         </div>
       )}
 
-      {/* Selected Range Display */}
-      {selectedSlots.length > 0 && range && (
+      {/* Reason Modal */}
+      {showReasonModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999,
+          padding: '16px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '100%'
+          }}>
+            <h3 style={{ marginBottom: '12px' }}>⛔ Alasan Penutupan</h3>
+            <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+              Tambahkan alasan (opsional)
+            </p>
+            <input
+              type="text"
+              value={closureReason}
+              onChange={(e) => setClosureReason(e.target.value)}
+              placeholder="Contoh: Maintenance, Private Event, dll"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '2px solid var(--gray-200)',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                marginBottom: '16px'
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                onClick={() => { setShowReasonModal(false); setPendingAction(null); setClosureReason(''); }}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={executeAdminAction}
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+              >
+                Konfirmasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Range Display (Customer only) */}
+      {!isAdmin && selectedSlots.length > 0 && range && (
         <div className="card" style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
             <div>
@@ -400,7 +613,7 @@ export default function Booking({ user }) {
               let borderColor = 'var(--gray-200)'
               let textColor = 'var(--gray-600)'
 
-              if (isSelected) {
+              if (isSelected && isAdmin) {
                 bgColor = '#DBEAFE'
                 borderColor = 'var(--primary)'
                 textColor = 'var(--primary)'
@@ -425,11 +638,11 @@ export default function Booking({ user }) {
                   key={slot.hour}
                   onClick={() => {
                     if (isAdmin && slot.isAvailable) {
-                      handleAdminBook(slot)
+                      handleAdminSlotToggle(slot)
                     } else if (!isAdmin && slot.isAvailable) {
                       handleSlotClick(slot)
                     } else if (isAdmin && slot.isBooked && slot.isAdminBooking) {
-                      handleAdminCancel(slot)
+                      handleAdminReopen(slot)
                     }
                   }}
                   style={{
@@ -456,14 +669,19 @@ export default function Booking({ user }) {
                     {slot.isBooked ? (
                       slot.isAdminBooking ? (
                         <span style={{ color: '#92400E', fontWeight: 500 }}>
-                          🔴 Tidak Tersedia {isAdmin && ' (Admin)'}
+                          🔴 {slot.closureReason || 'Tidak Tersedia'} 
+                          {isAdmin && ' (Admin)'}
                         </span>
                       ) : (
                         <span style={{ color: 'var(--danger)', fontWeight: 500 }}>
                           🔴 Booked by <strong>{slot.bookedBy || 'User'}</strong>
                         </span>
                       )
-                    ) : isSelected ? (
+                    ) : isSelected && isAdmin ? (
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                        ✅ Dipilih
+                      </span>
+                    ) : isSelected && !isAdmin ? (
                       <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
                         ✅ Dipilih
                       </span>
@@ -476,28 +694,14 @@ export default function Booking({ user }) {
 
                   {isSelected && !isAdmin && (
                     <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>
-                      {selectedSlots.length > 1 ? `(2 jam)` : `(1 jam)`}
+                      {selectedSlots.length > 1 ? `(${selectedSlots.length} jam)` : `(1 jam)`}
                     </span>
                   )}
 
-                  {isAdmin && slot.isAvailable && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleAdminBook(slot); }}
-                      className="btn btn-warning btn-sm"
-                      style={{ width: 'auto', minHeight: '30px', padding: '2px 12px', fontSize: '12px' }}
-                    >
-                      Tutup
-                    </button>
-                  )}
-
-                  {isAdmin && slot.isBooked && slot.isAdminBooking && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleAdminCancel(slot); }}
-                      className="btn btn-success btn-sm"
-                      style={{ width: 'auto', minHeight: '30px', padding: '2px 12px', fontSize: '12px' }}
-                    >
-                      Buka
-                    </button>
+                  {isSelected && isAdmin && (
+                    <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>
+                      ✓
+                    </span>
                   )}
                 </div>
               )
