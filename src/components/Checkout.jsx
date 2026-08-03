@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { supabase, createBookingWithCheckout } from '../lib/supabase'
+import { createBookingWithCheckout } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Checkout({ user }) {
@@ -30,28 +30,6 @@ export default function Checkout({ user }) {
   async function handleConfirmBooking() {
     setLoading(true)
 
-    // ✅ Re-check availability before inserting
-    const { data: existing, error: checkError } = await supabase
-      .from('bookings')
-      .select('*')
-      .in('status', ['pending', 'active'])
-      .filter('start_time', 'lt', endTime.toISOString())
-      .filter('end_time', 'gt', startTime.toISOString())
-
-    if (checkError) {
-      showToast('❌ Gagal memeriksa ketersediaan', 'error')
-      setLoading(false)
-      return
-    }
-
-    if (existing.length > 0) {
-      showToast('❌ Slot sudah tidak tersedia', 'error')
-      setLoading(false)
-      navigate('/booking')
-      return
-    }
-
-    // ✅ Proceed with booking creation
     const { data, error } = await createBookingWithCheckout(
       user.id,
       { date: date.toISOString ? date.toISOString().split('T')[0] : date.split('T')[0], hour: slot.hour },
@@ -64,9 +42,7 @@ export default function Checkout({ user }) {
       return
     }
 
-    navigate('/confirmation', {
-      state: { booking: data }
-    })
+    navigate('/confirmation', { state: { booking: data } })
   }
 
   return (
@@ -109,24 +85,14 @@ export default function Checkout({ user }) {
         </div>
 
         <div style={{ background: '#FEF3C7', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
-          <p style={{ fontSize: '14px', color: '#92400E' }}>
-            ⚠️ Saat ini dalam mode <strong>Gratis</strong>. Tidak ada pembayaran yang diproses.
-          </p>
+          <p style={{ fontSize: '14px', color: '#92400E' }}>⚠️ Saat ini dalam mode <strong>Gratis</strong>. Tidak ada pembayaran yang diproses.</p>
         </div>
 
-        <button 
-          onClick={handleConfirmBooking} 
-          className="btn btn-primary"
-          disabled={loading}
-        >
+        <button onClick={handleConfirmBooking} className="btn btn-primary" disabled={loading}>
           {loading ? '⏳ Memproses...' : '✅ Konfirmasi Booking'}
         </button>
 
-        <button 
-          onClick={() => navigate('/booking')} 
-          className="btn btn-outline"
-          style={{ marginTop: '8px' }}
-        >
+        <button onClick={() => navigate('/booking')} className="btn btn-outline" style={{ marginTop: '8px' }}>
           ← Kembali Pilih Slot
         </button>
       </div>
