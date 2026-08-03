@@ -15,8 +15,23 @@ export default function Booking({ user }) {
   const OPEN_HOUR = 7
   const CLOSE_HOUR = 23
   const MAX_DAYS_AHEAD = 14
-  const MAX_DURATION_HOURS = 2
   const SLOT_DURATION = 1
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const maxDate = new Date()
+  maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
+  maxDate.setHours(0, 0, 0, 0)
+
+  function formatDateInput(date) {
+    return date.toISOString().split('T')[0]
+  }
+
+  function parseDateInput(dateStr) {
+    const parts = dateStr.split('-')
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+  }
 
   useEffect(() => {
     loadBookings()
@@ -39,14 +54,14 @@ export default function Booking({ user }) {
 
   function generateSlots(existingBookings) {
     const slots = []
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const now = new Date()
+    const todayOnly = new Date()
+    todayOnly.setHours(0, 0, 0, 0)
     
     const selectedDateOnly = new Date(selectedDate)
     selectedDateOnly.setHours(0, 0, 0, 0)
 
-    // Block today
-    const isToday = selectedDateOnly.getTime() === today.getTime()
+    const isToday = selectedDateOnly.getTime() === todayOnly.getTime()
 
     for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
       const startTime = new Date(selectedDate)
@@ -55,7 +70,7 @@ export default function Booking({ user }) {
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
 
-      // Check if this slot is already booked
+      // Check if slot is already booked
       const isBooked = existingBookings.some(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
@@ -70,7 +85,7 @@ export default function Booking({ user }) {
       })
 
       // Check if slot is in the past (for today)
-      const isPast = isToday && startTime < new Date()
+      const isPast = isToday && startTime < now
 
       slots.push({
         hour,
@@ -92,20 +107,31 @@ export default function Booking({ user }) {
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   }
 
-  function formatDate(date) {
+  function formatDateDisplay(date) {
     return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
 
-  function changeDate(days) {
-    const newDate = new Date(selectedDate)
-    newDate.setDate(newDate.getDate() + days)
+  function handleDateChange(e) {
+    const dateStr = e.target.value
+    if (!dateStr) return
     
-    // Check max days ahead
-    const maxDate = new Date()
-    maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
+    const newDate = parseDateInput(dateStr)
+    newDate.setHours(0, 0, 0, 0)
     
-    if (newDate > maxDate) {
+    const maxDateCheck = new Date()
+    maxDateCheck.setDate(maxDateCheck.getDate() + MAX_DAYS_AHEAD)
+    maxDateCheck.setHours(0, 0, 0, 0)
+    
+    if (newDate > maxDateCheck) {
       showToast(`❌ Maksimal booking ${MAX_DAYS_AHEAD} hari ke depan`, 'warning')
+      return
+    }
+    
+    const todayCheck = new Date()
+    todayCheck.setHours(0, 0, 0, 0)
+    
+    if (newDate < todayCheck) {
+      showToast('❌ Tidak bisa memilih tanggal yang sudah lewat', 'warning')
       return
     }
     
@@ -122,28 +148,22 @@ export default function Booking({ user }) {
       return
     }
 
-    // If no slots selected, select this one
     if (selectedSlots.length === 0) {
       setSelectedSlots([slot])
       return
     }
 
-    // If one slot selected, try to add adjacent slot for 2 hours
     if (selectedSlots.length === 1) {
       const firstSlot = selectedSlots[0]
       
-      // Check if clicked slot is adjacent (next hour)
       const isAdjacent = slot.hour === firstSlot.hour + 1
       
-      // Check if clicked slot is the next available slot
       const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
       const isNextAvailable = nextSlot && nextSlot.isAvailable
       
       if (isAdjacent && isNextAvailable && slot.hour === firstSlot.hour + 1) {
-        // Select both slots (2 hours)
         setSelectedSlots([firstSlot, slot])
       } else {
-        // Not adjacent or not available → reset and select new slot
         setSelectedSlots([slot])
       }
     }
@@ -177,7 +197,6 @@ export default function Booking({ user }) {
     const duration = getSelectedDuration()
     const range = getSelectedStartEnd()
 
-    // Check if all selected slots are still available
     const allAvailable = selectedSlots.every(s => s.isAvailable)
     if (!allAvailable) {
       showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
@@ -198,34 +217,11 @@ export default function Booking({ user }) {
     })
   }
 
-  // Calendar date picker
-  function openCalendar() {
-    // Simple date input as fallback
-    const dateStr = prompt('Pilih tanggal (YYYY-MM-DD):', selectedDate.toISOString().split('T')[0])
-    if (dateStr) {
-      const newDate = new Date(dateStr + 'T00:00:00')
-      if (!isNaN(newDate.getTime())) {
-        // Check max days ahead
-        const maxDate = new Date()
-        maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
-        if (newDate > maxDate) {
-          showToast(`❌ Maksimal booking ${MAX_DAYS_AHEAD} hari ke depan`, 'warning')
-          return
-        }
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        if (newDate < today) {
-          showToast('❌ Tidak bisa memilih tanggal yang sudah lewat', 'warning')
-          return
-        }
-        setSelectedDate(newDate)
-        setSelectedSlots([])
-      }
-    }
-  }
-
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
+
+  // Filter slots: only show available or booked (but hide past)
+  const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
 
   return (
     <div className="container" style={{ paddingTop: '16px' }}>
@@ -245,21 +241,28 @@ export default function Booking({ user }) {
         </div>
       </div>
 
-      {/* Date Selector */}
+      {/* Date Picker */}
       <div className="card" style={{ marginTop: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <span style={{ fontWeight: 600, fontSize: '16px' }}>
-            📅 {formatDate(selectedDate)}
+            📅 {formatDateDisplay(selectedDate)}
           </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={openCalendar} 
-              className="btn btn-primary btn-sm" 
-              style={{ width: 'auto', minHeight: '36px', padding: '4px 12px', fontSize: '14px' }}
-            >
-              📅
-            </button>
-          </div>
+          <input
+            type="date"
+            value={formatDateInput(selectedDate)}
+            onChange={handleDateChange}
+            min={formatDateInput(today)}
+            max={formatDateInput(maxDate)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '2px solid var(--gray-200)',
+              fontSize: '14px',
+              fontFamily: 'inherit',
+              background: 'var(--white)',
+              cursor: 'pointer'
+            }}
+          />
         </div>
       </div>
 
@@ -275,13 +278,6 @@ export default function Booking({ user }) {
                 ({duration} jam)
               </span>
             </div>
-            <button 
-              onClick={() => setSelectedSlots([])} 
-              className="btn btn-outline btn-sm"
-              style={{ width: 'auto', minHeight: '30px', padding: '2px 12px', fontSize: '12px' }}
-            >
-              ✕ Batal
-            </button>
           </div>
         </div>
       )}
@@ -293,17 +289,16 @@ export default function Booking({ user }) {
           {loading && <span style={{ fontSize: '12px', color: 'var(--gray-400)', marginLeft: '8px' }}>⏳ Memuat...</span>}
         </h3>
 
-        <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginBottom: '12px' }}>
-          💡 Klik 1 slot = 1 jam • Klik 2 slot berurutan = 2 jam
-        </div>
-
-        {bookingSlots.length === 0 && !loading ? (
-          <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Tidak ada slot untuk hari ini</p>
+        {visibleSlots.length === 0 && !loading ? (
+          <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>
+            {selectedDate.toDateString() === new Date().toDateString() 
+              ? '⏰ Tidak ada slot tersisa untuk hari ini' 
+              : 'Tidak ada slot untuk hari ini'}
+          </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {bookingSlots.map((slot) => {
+            {visibleSlots.map((slot) => {
               const isSelected = isSlotSelected(slot)
-              const isDisabled = !slot.isAvailable
 
               let bgColor = '#F3F4F6'
               let borderColor = 'var(--gray-200)'
@@ -317,10 +312,6 @@ export default function Booking({ user }) {
                 bgColor = '#FEE2E2'
                 borderColor = '#FCA5A5'
                 textColor = 'var(--danger)'
-              } else if (slot.isPast) {
-                bgColor = '#F3F4F6'
-                borderColor = 'var(--gray-200)'
-                textColor = 'var(--gray-400)'
               } else {
                 bgColor = '#D1FAE5'
                 borderColor = 'var(--success)'
@@ -340,7 +331,6 @@ export default function Booking({ user }) {
                     backgroundColor: bgColor,
                     border: `2px solid ${borderColor}`,
                     cursor: slot.isAvailable ? 'pointer' : 'default',
-                    opacity: slot.isPast ? 0.5 : 1,
                     flexWrap: 'wrap',
                     gap: '8px',
                     transition: 'all 0.2s ease'
@@ -354,10 +344,6 @@ export default function Booking({ user }) {
                     {slot.isBooked ? (
                       <span style={{ color: 'var(--danger)', fontWeight: 500 }}>
                         🔴 Booked by <strong>{slot.bookedBy || 'User'}</strong>
-                      </span>
-                    ) : slot.isPast ? (
-                      <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>
-                        ⚪ Sudah lewat
                       </span>
                     ) : isSelected ? (
                       <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
