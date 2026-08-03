@@ -195,34 +195,39 @@ export default function Booking({ user }) {
   }
 
   function handleProceedToCheckout() {
-    if (selectedSlots.length === 0) {
-      showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
-      return
-    }
-
-    const duration = getSelectedDuration()
-    const range = getSelectedStartEnd()
-
-    const allAvailable = selectedSlots.every(s => s.isAvailable)
-    if (!allAvailable) {
-      showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
-      loadBookings()
-      return
-    }
-
-    navigate('/checkout', {
-      state: {
-        date: selectedDate,
-        slot: {
-          hour: selectedSlots[0].hour,
-          startTime: range.start,
-          endTime: range.end
-        },
-        duration: duration
-      }
-    })
+  if (selectedSlots.length === 0) {
+    showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
+    return
   }
 
+  const duration = getSelectedDuration()
+  const range = getSelectedStartEnd()
+
+  const allAvailable = selectedSlots.every(s => s.isAvailable)
+  if (!allAvailable) {
+    showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
+    loadBookings()
+    return
+  }
+
+  // Make sure we have valid date objects
+  if (!range || !range.start || !range.end) {
+    showToast('❌ Data slot tidak valid', 'error')
+    return
+  }
+
+  navigate('/checkout', {
+    state: {
+      date: selectedDate,
+      slot: {
+        hour: selectedSlots[0].hour,
+        startTime: range.start.toISOString(),  // ← Convert to ISO string
+        endTime: range.end.toISOString()       // ← Convert to ISO string
+      },
+      duration: duration
+    }
+  })
+}
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
 
