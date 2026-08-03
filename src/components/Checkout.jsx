@@ -1,3 +1,5 @@
+// src/components/Checkout.jsx
+
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { createBookingWithCheckout } from '../lib/supabase'
@@ -11,45 +13,54 @@ export default function Checkout({ user }) {
 
   const { date, slot, duration } = location.state || {}
 
+  // Debug: log what we received
+  console.log('Checkout received:', { date, slot, duration })
+
+  // Handle missing data
   if (!date || !slot || !duration) {
+    console.error('Missing checkout data')
     navigate('/booking')
     return null
   }
 
-  const startTime = slot.startTime
-  const endTime = duration === 1 ? slot.endTime1 : slot.endTime2
+  // Parse dates - handle both Date objects and ISO strings
+  const startTime = slot.startTime instanceof Date 
+    ? slot.startTime 
+    : new Date(slot.startTime)
+  
+  const endTime = slot.endTime instanceof Date 
+    ? slot.endTime 
+    : new Date(slot.endTime)
+
+  // Check if dates are valid
+  if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+    console.error('Invalid date objects:', { startTime, endTime })
+    navigate('/booking')
+    return null
+  }
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   }
 
-  function formatDate(date) {
+  function formatDateDisplay(date) {
     return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
 
   async function handleConfirmBooking() {
     setLoading(true)
 
-    console.log('📤 Checkout: Starting booking...')
-    console.log('📤 User ID:', user.id)
-    console.log('📤 Date:', date.toISOString().split('T')[0])
-    console.log('📤 Hour:', slot.hour)
-    console.log('📤 Duration:', duration)
-
     const { data, error } = await createBookingWithCheckout(
       user.id,
-      { date: date.toISOString().split('T')[0], hour: slot.hour },
+      { date: date.toISOString ? date.toISOString().split('T')[0] : date.split('T')[0], hour: slot.hour },
       duration
     )
 
     if (error) {
-      console.error('❌ Checkout error:', error)
       showToast('❌ ' + error.message, 'error')
       setLoading(false)
       return
     }
-
-    console.log('✅ Checkout success:', data)
 
     navigate('/confirmation', {
       state: { booking: data }
@@ -79,7 +90,7 @@ export default function Checkout({ user }) {
         <div style={{ background: 'var(--primary-bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>📅 Tanggal</span>
-            <span style={{ fontWeight: 600 }}>{formatDate(date)}</span>
+            <span style={{ fontWeight: 600 }}>{formatDateDisplay(date instanceof Date ? date : new Date(date))}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>⏰ Waktu</span>
