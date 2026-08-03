@@ -16,18 +16,26 @@ export default function Checkout({ user }) {
     return null
   }
 
-  // ✅ Extract date string correctly
-  const dateStr = date instanceof Date ? date.toISOString().split('T')[0] : date.split('T')[0]
-
   const startTime = new Date(slot.startTime)
   const endTime = new Date(slot.endTime)
 
   function formatTime(date) {
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta'
+    })
   }
 
-  function formatDateDisplay(date) {
-    return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  function formatDateDisplay(dateStr) {
+    const parts = dateStr.split('-')
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+    return date.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
   }
 
   async function handleConfirmBooking() {
@@ -35,10 +43,7 @@ export default function Checkout({ user }) {
 
     const { data, error } = await createBookingWithCheckout(
       user.id,
-      { 
-        date: dateStr,  // ✅ Use the extracted date string
-        hour: slot.hour 
-      },
+      { date: date, hour: slot.hour },
       duration
     )
 
@@ -74,9 +79,7 @@ export default function Checkout({ user }) {
         <div style={{ background: 'var(--primary-bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>📅 Tanggal</span>
-            <span style={{ fontWeight: 600 }}>
-              {date instanceof Date ? formatDateDisplay(date) : formatDateDisplay(new Date(date))}
-            </span>
+            <span style={{ fontWeight: 600 }}>{formatDateDisplay(date)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>⏰ Waktu</span>
