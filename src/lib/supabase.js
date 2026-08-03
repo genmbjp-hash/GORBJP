@@ -201,8 +201,6 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     return { error }
   }
 
-  console.log('✅ Booking created:', data)
-
   // ============================================
   // SEND TELEGRAM NOTIFICATION (DIRECT FETCH)
   // ============================================
