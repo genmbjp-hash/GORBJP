@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getBookingsForDate } from '../lib/supabase'
+import { supabase, getBookingsForDate } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Booking({ user }) {
@@ -9,6 +9,7 @@ export default function Booking({ user }) {
   const [loading, setLoading] = useState(true)
   const [bookingSlots, setBookingSlots] = useState([])
   const [selectedSlots, setSelectedSlots] = useState([])
+  const [isAdmin, setIsAdmin] = useState(false)
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -24,6 +25,20 @@ export default function Booking({ user }) {
   maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
   maxDate.setHours(0, 0, 0, 0)
 
+  useEffect(() => {
+    // Check if user is admin
+    const checkAdmin = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      setIsAdmin(data?.role === 'admin')
+    }
+    checkAdmin()
+    loadBookings()
+  }, [selectedDate])
+
   function formatDateInput(date) {
     return date.toISOString().split('T')[0]
   }
@@ -32,10 +47,6 @@ export default function Booking({ user }) {
     const parts = dateStr.split('-')
     return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
   }
-
-  useEffect(() => {
-    loadBookings()
-  }, [selectedDate])
 
   async function loadBookings() {
     setLoading(true)
@@ -70,21 +81,14 @@ export default function Booking({ user }) {
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
 
-      // Check if slot is already booked
-      const isBooked = existingBookings.some(b => {
+      const booking = existingBookings.find(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
         return startTime < bEnd && endTime > bStart
       })
 
-      // Find who booked it
-      const booking = existingBookings.find(b => {
-        const bStart = new Date(b.start_time)
-        const bEnd = new Date(b.end_time)
-        return startTime >= bStart && startTime < bEnd
-      })
-
-      // Check if slot is in the past (for today)
+      const isBooked = !!booking
+      const isAdminBooking = booking?.is_admin_booking || false
       const isPast = isToday && startTime < now
 
       slots.push({
@@ -92,6 +96,7 @@ export default function Booking({ user }) {
         startTime,
         endTime,
         isBooked,
+        isAdminBooking,
         isPast,
         isAvailable: !isBooked && !isPast,
         bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
@@ -139,42 +144,118 @@ export default function Booking({ user }) {
     setSelectedSlots([])
   }
 
+  // Handle slot click for customers
   function handleSlotClick(slot) {
-  if (!slot.isAvailable) return
+    if (!slot.isAvailable) return
 
-  // If 2 slots selected, clicking either one clears both
-  if (selectedSlots.length === 2) {
-    setSelectedSlots([])
-    return
-  }
+    if (selectedSlots.length === 2) {
+      setSelectedSlots([])
+      return
+    }
 
-  // If 1 slot selected, clicking it again deselects it
-  if (selectedSlots.length === 1 && selectedSlots[0].hour === slot.hour) {
-    setSelectedSlots([])
-    return
-  }
+    if (selectedSlots.length === 1 && selectedSlots[0].hour === slot.hour) {
+      setSelectedSlots([])
+      return
+    }
 
-  if (selectedSlots.length === 0) {
-    setSelectedSlots([slot])
-    return
-  }
-
-  if (selectedSlots.length === 1) {
-    const firstSlot = selectedSlots[0]
-    
-    const isAdjacent = slot.hour === firstSlot.hour + 1
-    
-    const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
-    const isNextAvailable = nextSlot && nextSlot.isAvailable
-    
-    if (isAdjacent && isNextAvailable && slot.hour === firstSlot.hour + 1) {
-      setSelectedSlots([firstSlot, slot])
-    } else {
+    if (selectedSlots.length === 0) {
       setSelectedSlots([slot])
+      return
+    }
+
+    if (selectedSlots.length === 1) {
+      const firstSlot = selectedSlots[0]
+      const isAdjacent = slot.hour === firstSlot.hour + 1
+      const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
+      const isNextAvailable = nextSlot && nextSlot.isAvailable
+      
+      if (isAdjacent && isNextAvailable && slot.hour === firstSlot.hour + 1) {
+        setSelectedSlots([firstSlot, slot])
+      } else {
+        setSelectedSlots([slot])
+      }
     }
   }
-}
-  
+
+  // Handle admin booking
+  async function handleAdminBook(slot) {
+    if (!isAdmin) return
+    if (!slot.isAvailable) return
+
+    const confirm = window.confirm(
+      `Apakah Anda yakin ingin menutup slot ini?\n\n` +
+      `📅 ${formatDateDisplay(selectedDate)}\n` +
+      `⏰ ${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}\n\n` +
+      `Slot akan ditutup untuk umum dan tidak dapat dibooking oleh customer.`
+    )
+
+    if (!confirm) return
+
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'completed',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin'
+        })
+        .select()
+        .single()
+
+      if (error) {
+        showToast('❌ Gagal menutup slot: ' + error.message, 'error')
+        return
+      }
+
+      showToast('✅ Slot ditutup', 'success')
+      loadBookings()
+    } catch (error) {
+      showToast('❌ Gagal menutup slot', 'error')
+    }
+  }
+
+  // Handle admin cancel/delete
+  async function handleAdminCancel(slot) {
+    if (!isAdmin) return
+    if (!slot.isBooked) return
+    if (!slot.isAdminBooking) {
+      showToast('❌ Anda hanya bisa membatalkan booking admin sendiri', 'warning')
+      return
+    }
+
+    const confirm = window.confirm(
+      `Apakah Anda yakin ingin membuka kembali slot ini?\n\n` +
+      `📅 ${formatDateDisplay(selectedDate)}\n` +
+      `⏰ ${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`
+    )
+
+    if (!confirm) return
+
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .delete()
+        .eq('id', slot.bookingId)
+
+      if (error) {
+        showToast('❌ Gagal membuka slot: ' + error.message, 'error')
+        return
+      }
+
+      showToast('✅ Slot dibuka kembali', 'success')
+      loadBookings()
+    } catch (error) {
+      showToast('❌ Gagal membuka slot', 'error')
+    }
+  }
+
   function isSlotSelected(slot) {
     return selectedSlots.some(s => s.hour === slot.hour)
   }
@@ -195,39 +276,34 @@ export default function Booking({ user }) {
   }
 
   function handleProceedToCheckout() {
-  if (selectedSlots.length === 0) {
-    showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
-    return
-  }
-
-  const duration = getSelectedDuration()
-  const range = getSelectedStartEnd()
-
-  const allAvailable = selectedSlots.every(s => s.isAvailable)
-  if (!allAvailable) {
-    showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
-    loadBookings()
-    return
-  }
-
-  // Make sure we have valid date objects
-  if (!range || !range.start || !range.end) {
-    showToast('❌ Data slot tidak valid', 'error')
-    return
-  }
-
-  navigate('/checkout', {
-    state: {
-      date: selectedDate,
-      slot: {
-        hour: selectedSlots[0].hour,
-        startTime: range.start.toISOString(),  // ← Convert to ISO string
-        endTime: range.end.toISOString()       // ← Convert to ISO string
-      },
-      duration: duration
+    if (selectedSlots.length === 0) {
+      showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
+      return
     }
-  })
-}
+
+    const duration = getSelectedDuration()
+    const range = getSelectedStartEnd()
+
+    const allAvailable = selectedSlots.every(s => s.isAvailable)
+    if (!allAvailable) {
+      showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
+      loadBookings()
+      return
+    }
+
+    navigate('/checkout', {
+      state: {
+        date: selectedDate,
+        slot: {
+          hour: selectedSlots[0].hour,
+          startTime: range.start.toISOString(),
+          endTime: range.end.toISOString()
+        },
+        duration: duration
+      }
+    })
+  }
+
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
 
@@ -277,6 +353,15 @@ export default function Booking({ user }) {
         </div>
       </div>
 
+      {/* Admin badge */}
+      {isAdmin && (
+        <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
+          <p style={{ fontSize: '14px', color: '#92400E', margin: 0 }}>
+            👑 Mode Admin — Klik "Book" pada slot untuk menutup venue
+          </p>
+        </div>
+      )}
+
       {/* Selected Range Display */}
       {selectedSlots.length > 0 && range && (
         <div className="card" style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary)' }}>
@@ -320,9 +405,15 @@ export default function Booking({ user }) {
                 borderColor = 'var(--primary)'
                 textColor = 'var(--primary)'
               } else if (slot.isBooked) {
-                bgColor = '#FEE2E2'
-                borderColor = '#FCA5A5'
-                textColor = 'var(--danger)'
+                if (slot.isAdminBooking) {
+                  bgColor = '#FEF3C7'
+                  borderColor = '#F59E0B'
+                  textColor = '#92400E'
+                } else {
+                  bgColor = '#FEE2E2'
+                  borderColor = '#FCA5A5'
+                  textColor = 'var(--danger)'
+                }
               } else {
                 bgColor = '#D1FAE5'
                 borderColor = 'var(--success)'
@@ -332,7 +423,15 @@ export default function Booking({ user }) {
               return (
                 <div 
                   key={slot.hour}
-                  onClick={() => handleSlotClick(slot)}
+                  onClick={() => {
+                    if (isAdmin && slot.isAvailable) {
+                      handleAdminBook(slot)
+                    } else if (!isAdmin && slot.isAvailable) {
+                      handleSlotClick(slot)
+                    } else if (isAdmin && slot.isBooked && slot.isAdminBooking) {
+                      handleAdminCancel(slot)
+                    }
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -341,7 +440,9 @@ export default function Booking({ user }) {
                     borderRadius: '8px',
                     backgroundColor: bgColor,
                     border: `2px solid ${borderColor}`,
-                    cursor: slot.isAvailable ? 'pointer' : 'default',
+                    cursor: (isAdmin && slot.isAvailable) || 
+                            (isAdmin && slot.isBooked && slot.isAdminBooking) ||
+                            (!isAdmin && slot.isAvailable) ? 'pointer' : 'default',
                     flexWrap: 'wrap',
                     gap: '8px',
                     transition: 'all 0.2s ease'
@@ -353,9 +454,15 @@ export default function Booking({ user }) {
                   
                   <div style={{ flex: 1 }}>
                     {slot.isBooked ? (
-                      <span style={{ color: 'var(--danger)', fontWeight: 500 }}>
-                        🔴 Booked by <strong>{slot.bookedBy || 'User'}</strong>
-                      </span>
+                      slot.isAdminBooking ? (
+                        <span style={{ color: '#92400E', fontWeight: 500 }}>
+                          🔴 Tidak Tersedia {isAdmin && ' (Admin)'}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--danger)', fontWeight: 500 }}>
+                          🔴 Booked by <strong>{slot.bookedBy || 'User'}</strong>
+                        </span>
+                      )
                     ) : isSelected ? (
                       <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
                         ✅ Dipilih
@@ -367,10 +474,30 @@ export default function Booking({ user }) {
                     )}
                   </div>
 
-                  {isSelected && (
+                  {isSelected && !isAdmin && (
                     <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>
                       {selectedSlots.length > 1 ? `(2 jam)` : `(1 jam)`}
                     </span>
+                  )}
+
+                  {isAdmin && slot.isAvailable && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAdminBook(slot); }}
+                      className="btn btn-warning btn-sm"
+                      style={{ width: 'auto', minHeight: '30px', padding: '2px 12px', fontSize: '12px' }}
+                    >
+                      Tutup
+                    </button>
+                  )}
+
+                  {isAdmin && slot.isBooked && slot.isAdminBooking && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAdminCancel(slot); }}
+                      className="btn btn-success btn-sm"
+                      style={{ width: 'auto', minHeight: '30px', padding: '2px 12px', fontSize: '12px' }}
+                    >
+                      Buka
+                    </button>
                   )}
                 </div>
               )
@@ -379,15 +506,17 @@ export default function Booking({ user }) {
         )}
       </div>
 
-      {/* Book Button */}
-      <button 
-        onClick={handleProceedToCheckout} 
-        className="btn btn-primary"
-        disabled={selectedSlots.length === 0 || loading}
-        style={{ marginTop: '16px' }}
-      >
-        {selectedSlots.length === 0 ? 'Pilih slot terlebih dahulu' : '📖 Pesan Sekarang'}
-      </button>
+      {/* Book Button (Customer only) */}
+      {!isAdmin && (
+        <button 
+          onClick={handleProceedToCheckout} 
+          className="btn btn-primary"
+          disabled={selectedSlots.length === 0 || loading}
+          style={{ marginTop: '16px' }}
+        >
+          {selectedSlots.length === 0 ? 'Pilih slot terlebih dahulu' : '📖 Pesan Sekarang'}
+        </button>
+      )}
     </div>
   )
 }
