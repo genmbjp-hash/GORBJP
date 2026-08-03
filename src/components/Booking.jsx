@@ -39,6 +39,26 @@ export default function Booking({ user }) {
     }
     checkAdmin()
     loadBookings()
+
+    // Real-time subscription for booking changes
+    const subscription = supabase
+      .channel('bookings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings'
+        },
+        () => {
+          loadBookings()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(subscription)
+    }
   }, [selectedDate])
 
   function formatDateInput(date) {
@@ -104,7 +124,7 @@ export default function Booking({ user }) {
         isBooked,
         isAdminBooking,
         isPast,
-        isAvailable,  // ← This blocks ALL bookings for customers
+        isAvailable,
         bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
         bookingId: booking?.id || null,
         closureReason: closureReason
@@ -318,7 +338,7 @@ export default function Booking({ user }) {
           end_time: slot.endTime.toISOString(),
           duration_hours: 1,
           is_admin_booking: true,
-          status: 'completed',
+          status: 'active', // ← FIXED: use 'active' instead of 'completed'
           price: 0,
           payment_status: 'free',
           payment_method: 'admin',
@@ -354,7 +374,7 @@ export default function Booking({ user }) {
           end_time: slot.endTime.toISOString(),
           duration_hours: 1,
           is_admin_booking: true,
-          status: 'completed',
+          status: 'active', // ← FIXED: use 'active' instead of 'completed'
           price: 0,
           payment_status: 'free',
           payment_method: 'admin',
@@ -413,6 +433,7 @@ export default function Booking({ user }) {
     const allAvailable = selectedSlots.every(s => s.isAvailable)
     if (!allAvailable) {
       showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
+      setSelectedSlots([])
       loadBookings()
       return
     }
