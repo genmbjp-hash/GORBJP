@@ -13,12 +13,8 @@ export default function Checkout({ user }) {
 
   const { date, slot, duration } = location.state || {}
 
-  // Debug: log what we received
-  console.log('Checkout received:', { date, slot, duration })
-
   // Handle missing data
   if (!date || !slot || !duration) {
-    console.error('Missing checkout data')
     navigate('/booking')
     return null
   }
@@ -34,7 +30,6 @@ export default function Checkout({ user }) {
 
   // Check if dates are valid
   if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-    console.error('Invalid date objects:', { startTime, endTime })
     navigate('/booking')
     return null
   }
