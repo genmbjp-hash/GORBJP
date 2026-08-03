@@ -4,7 +4,9 @@ import { supabase, getBookingsForDate } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Booking({ user }) {
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split('T')[0]
+  )
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [bookingSlots, setBookingSlots] = useState([])
@@ -21,15 +23,16 @@ export default function Booking({ user }) {
   const MAX_DAYS_AHEAD = 14
   const SLOT_DURATION = 1
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const maxDate = new Date()
-  maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
-  maxDate.setHours(0, 0, 0, 0)
+  const todayStr = new Date().toISOString().split('T')[0]
+  const maxDateStr = new Date(Date.now() + MAX_DAYS_AHEAD * 86400000).toISOString().split('T')[0]
 
   useEffect(() => {
     const checkAdmin = async () => {
-      const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
       setIsAdmin(data?.role === 'admin')
     }
     checkAdmin()
@@ -43,9 +46,34 @@ export default function Booking({ user }) {
     return () => supabase.removeChannel(subscription)
   }, [selectedDate])
 
+  function getDateObj(dateStr) {
+    const parts = dateStr.split('-')
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+  }
+
+  function formatDateDisplay(dateStr) {
+    const parts = dateStr.split('-')
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+    return date.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta'
+    })
+  }
+
   async function loadBookings() {
     setLoading(true)
-    const { data, error } = await getBookingsForDate(selectedDate)
+    const dateObj = getDateObj(selectedDate)
+    const { data, error } = await getBookingsForDate(dateObj)
     if (error) {
       showToast('❌ Gagal memuat booking: ' + error.message, 'error')
       setLoading(false)
@@ -59,12 +87,11 @@ export default function Booking({ user }) {
   function generateSlots(existingBookings) {
     const slots = []
     const now = new Date()
-    const selectedDateOnly = new Date(selectedDate)
-    selectedDateOnly.setHours(0, 0, 0, 0)
-    const isToday = selectedDateOnly.getTime() === new Date().setHours(0, 0, 0, 0)
+    const dateObj = getDateObj(selectedDate)
+    const isToday = dateObj.toDateString() === new Date().toDateString()
 
     for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
-      const startTime = new Date(selectedDate)
+      const startTime = new Date(dateObj)
       startTime.setHours(hour, 0, 0, 0)
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
@@ -72,7 +99,8 @@ export default function Booking({ user }) {
       const booking = existingBookings.find(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
-        return startTime < bEnd && endTime > bStart
+        const sameDate = bStart.toDateString() === dateObj.toDateString()
+        return sameDate && startTime < bEnd && endTime > bStart
       })
 
       const isBooked = !!booking
@@ -81,8 +109,12 @@ export default function Booking({ user }) {
       const closureReason = booking?.closure_reason || null
 
       slots.push({
-        hour, startTime, endTime,
-        isBooked, isAdminBooking, isPast,
+        hour,
+        startTime,
+        endTime,
+        isBooked,
+        isAdminBooking,
+        isPast,
         isAvailable: !isBooked && !isPast,
         bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
         bookingId: booking?.id || null,
@@ -94,33 +126,10 @@ export default function Booking({ user }) {
     setSelectedSlots([])
   }
 
-  function formatTime(date) {
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-  }
-
-  function formatDateDisplay(date) {
-    return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  }
-
   function handleDateChange(e) {
     const dateStr = e.target.value
     if (!dateStr) return
-    const newDate = new Date(dateStr + 'T00:00:00')
-    if (isNaN(newDate.getTime())) return
-    const maxDateCheck = new Date()
-    maxDateCheck.setDate(maxDateCheck.getDate() + MAX_DAYS_AHEAD)
-    maxDateCheck.setHours(0, 0, 0, 0)
-    if (newDate > maxDateCheck) {
-      showToast(`❌ Maksimal booking ${MAX_DAYS_AHEAD} hari ke depan`, 'warning')
-      return
-    }
-    const todayCheck = new Date()
-    todayCheck.setHours(0, 0, 0, 0)
-    if (newDate < todayCheck) {
-      showToast('❌ Tidak bisa memilih tanggal yang sudah lewat', 'warning')
-      return
-    }
-    setSelectedDate(newDate)
+    setSelectedDate(dateStr)
     setSelectedSlots([])
   }
 
@@ -223,73 +232,66 @@ export default function Booking({ user }) {
   }
 
   async function executeAdminAction() {
-  setShowReasonModal(false)
-
-  try {
-    if (pendingAction === 'close') {
-      const bookingsToInsert = selectedSlots.map(slot => ({
-        user_id: user.id,
-        pin: null,
-        start_time: slot.startTime.toISOString(),
-        end_time: slot.endTime.toISOString(),
-        duration_hours: 1,
-        is_admin_booking: true,
-        status: 'pending',  // ✅ FIXED: same as customer booking
-        price: 0,
-        payment_status: 'free',
-        payment_method: 'admin',
-        closure_reason: closureReason || null
-      }))
-
-      const { error } = await supabase.from('bookings').insert(bookingsToInsert)
-      if (error) {
-        showToast('❌ Gagal menutup slot: ' + error.message, 'error')
-        return
+    setShowReasonModal(false)
+    try {
+      if (pendingAction === 'close') {
+        const bookingsToInsert = selectedSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'pending',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || null
+        }))
+        const { error } = await supabase.from('bookings').insert(bookingsToInsert)
+        if (error) {
+          showToast('❌ Gagal menutup slot: ' + error.message, 'error')
+          return
+        }
+        showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
+        setSelectedSlots([])
+        loadBookings()
+      } else if (pendingAction === 'closeAll') {
+        const customerBookings = bookings.filter(b => b.is_admin_booking === false)
+        if (customerBookings.length > 0) {
+          const ids = customerBookings.map(b => b.id)
+          await supabase.from('bookings').delete().in('id', ids)
+        }
+        const allSlots = bookingSlots.filter(s => !s.isPast)
+        const bookingsToInsert = allSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'pending',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || 'Tutup Hari Ini'
+        }))
+        const { error } = await supabase.from('bookings').insert(bookingsToInsert)
+        if (error) {
+          showToast('❌ Gagal menutup hari: ' + error.message, 'error')
+          return
+        }
+        showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
+        setSelectedSlots([])
+        loadBookings()
       }
-      showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
-      setSelectedSlots([])
-      loadBookings()
-
-    } else if (pendingAction === 'closeAll') {
-      // Delete customer bookings first
-      const customerBookings = bookings.filter(b => b.is_admin_booking === false)
-      if (customerBookings.length > 0) {
-        const ids = customerBookings.map(b => b.id)
-        await supabase.from('bookings').delete().in('id', ids)
-      }
-
-      const allSlots = bookingSlots.filter(s => !s.isPast)
-      const bookingsToInsert = allSlots.map(slot => ({
-        user_id: user.id,
-        pin: null,
-        start_time: slot.startTime.toISOString(),
-        end_time: slot.endTime.toISOString(),
-        duration_hours: 1,
-        is_admin_booking: true,
-        status: 'pending',  // ✅ FIXED: same as customer booking
-        price: 0,
-        payment_status: 'free',
-        payment_method: 'admin',
-        closure_reason: closureReason || 'Tutup Hari Ini'
-      }))
-
-      const { error } = await supabase.from('bookings').insert(bookingsToInsert)
-      if (error) {
-        showToast('❌ Gagal menutup hari: ' + error.message, 'error')
-        return
-      }
-      showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
-      setSelectedSlots([])
-      loadBookings()
+    } catch (error) {
+      showToast('❌ Gagal menjalankan aksi', 'error')
     }
-  } catch (error) {
-    showToast('❌ Gagal menjalankan aksi', 'error')
+    setPendingAction(null)
+    setClosureReason('')
   }
 
-  setPendingAction(null)
-  setClosureReason('')
-}
-  
   function isSlotSelected(slot) {
     return selectedSlots.some(s => s.hour === slot.hour)
   }
@@ -305,35 +307,24 @@ export default function Booking({ user }) {
   }
 
   function handleProceedToCheckout() {
-  if (selectedSlots.length === 0) {
-    showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
-    return
-  }
-
-  const range = getSelectedStartEnd()
-
-  // ✅ Ensure date is a valid Date object
-  const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate)
-
-  if (isNaN(dateObj.getTime())) {
-    showToast('❌ Tanggal tidak valid', 'error')
-    return
-  }
-
-  console.log('📅 Navigating to checkout with date:', dateObj.toISOString().split('T')[0])
-
-  navigate('/checkout', {
-    state: {
-      date: dateObj,
-      slot: {
-        hour: selectedSlots[0].hour,
-        startTime: range.start.toISOString(),
-        endTime: range.end.toISOString()
-      },
-      duration: getSelectedDuration()
+    if (selectedSlots.length === 0) {
+      showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
+      return
     }
-  })
-}
+    const range = getSelectedStartEnd()
+    navigate('/checkout', {
+      state: {
+        date: selectedDate,
+        slot: {
+          hour: selectedSlots[0].hour,
+          startTime: range.start.toISOString(),
+          endTime: range.end.toISOString()
+        },
+        duration: getSelectedDuration()
+      }
+    })
+  }
+
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
@@ -358,7 +349,22 @@ export default function Booking({ user }) {
       <div className="card" style={{ marginTop: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <span style={{ fontWeight: 600, fontSize: '16px' }}>📅 {formatDateDisplay(selectedDate)}</span>
-          <input type="date" value={selectedDate.toISOString().split('T')[0]} onChange={handleDateChange} min={today.toISOString().split('T')[0]} max={maxDate.toISOString().split('T')[0]} style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid var(--gray-200)', fontSize: '14px', fontFamily: 'inherit', background: 'var(--white)', cursor: 'pointer' }} />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            min={todayStr}
+            max={maxDateStr}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '2px solid var(--gray-200)',
+              fontSize: '14px',
+              fontFamily: 'inherit',
+              background: 'var(--white)',
+              cursor: 'pointer'
+            }}
+          />
         </div>
       </div>
 
@@ -403,7 +409,7 @@ export default function Booking({ user }) {
         </h3>
         {visibleSlots.length === 0 && !loading ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>
-            {selectedDate.toDateString() === new Date().toDateString() ? '⏰ Tidak ada slot tersisa untuk hari ini' : 'Tidak ada slot untuk hari ini'}
+            {new Date().toDateString() === getDateObj(selectedDate).toDateString() ? '⏰ Tidak ada slot tersisa untuk hari ini' : 'Tidak ada slot untuk hari ini'}
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
