@@ -103,7 +103,6 @@ export default function Booking({ user }) {
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
 
-      // Find ANY booking that overlaps this slot
       const booking = existingBookings.find(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
@@ -115,7 +114,6 @@ export default function Booking({ user }) {
       const isPast = isToday && startTime < now
       const closureReason = booking?.closure_reason || null
 
-      // isAvailable is FALSE for ANY booking (admin or customer)
       const isAvailable = !isBooked && !isPast
 
       slots.push({
@@ -133,6 +131,7 @@ export default function Booking({ user }) {
     }
 
     setBookingSlots(slots)
+    // ✅ Clear selected slots when slots regenerate
     setSelectedSlots([])
   }
 
@@ -172,16 +171,18 @@ export default function Booking({ user }) {
     setSelectedSlots([])
   }
 
-  // Customer: select slots
+  // ✅ Customer: select slots with live data check
   function handleSlotClick(slot) {
-    // BLOCKED: if slot is not available (includes admin bookings)
-    if (!slot.isAvailable) {
+    // ✅ Find the live version of this slot
+    const liveSlot = bookingSlots.find(b => b.hour === slot.hour)
+    if (!liveSlot) return
+
+    // ✅ Check against live data
+    if (!liveSlot.isAvailable) {
       showToast('⚠️ Slot tidak tersedia', 'warning')
       return
     }
-
-    // Additional check: if slot is admin booking, block it
-    if (slot.isAdminBooking) {
+    if (liveSlot.isAdminBooking) {
       showToast('⚠️ Slot ditutup oleh admin', 'warning')
       return
     }
@@ -191,26 +192,26 @@ export default function Booking({ user }) {
       return
     }
 
-    if (selectedSlots.length === 1 && selectedSlots[0].hour === slot.hour) {
+    if (selectedSlots.length === 1 && selectedSlots[0].hour === liveSlot.hour) {
       setSelectedSlots([])
       return
     }
 
     if (selectedSlots.length === 0) {
-      setSelectedSlots([slot])
+      setSelectedSlots([liveSlot])
       return
     }
 
     if (selectedSlots.length === 1) {
       const firstSlot = selectedSlots[0]
-      const isAdjacent = slot.hour === firstSlot.hour + 1
+      const isAdjacent = liveSlot.hour === firstSlot.hour + 1
       const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
       const isNextAvailable = nextSlot && nextSlot.isAvailable && !nextSlot.isAdminBooking
       
-      if (isAdjacent && isNextAvailable && slot.hour === firstSlot.hour + 1) {
-        setSelectedSlots([firstSlot, slot])
+      if (isAdjacent && isNextAvailable && liveSlot.hour === firstSlot.hour + 1) {
+        setSelectedSlots([firstSlot, liveSlot])
       } else {
-        setSelectedSlots([slot])
+        setSelectedSlots([liveSlot])
       }
     }
   }
@@ -428,17 +429,20 @@ export default function Booking({ user }) {
     }
   }
 
+  // ✅ Validate against LIVE bookingSlots, not stale selectedSlots
   function handleProceedToCheckout() {
     if (selectedSlots.length === 0) {
       showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
       return
     }
 
-    const duration = getSelectedDuration()
-    const range = getSelectedStartEnd()
+    // ✅ Re-check against CURRENT bookingSlots
+    const currentSlots = selectedSlots.map(sel =>
+      bookingSlots.find(b => b.hour === sel.hour)
+    )
 
-    // Check if ANY selected slot is not available or is admin booking
-    const allAvailable = selectedSlots.every(s => s.isAvailable && !s.isAdminBooking)
+    // Check if any selected slot is now unavailable
+    const allAvailable = currentSlots.every(s => s && s.isAvailable && !s.isAdminBooking)
     if (!allAvailable) {
       showToast('❌ Beberapa slot sudah tidak tersedia', 'error')
       setSelectedSlots([])
@@ -446,11 +450,14 @@ export default function Booking({ user }) {
       return
     }
 
+    const duration = getSelectedDuration()
+    const range = getSelectedStartEnd()
+
     navigate('/checkout', {
       state: {
         date: selectedDate,
         slot: {
-          hour: selectedSlots[0].hour,
+          hour: currentSlots[0].hour,
           startTime: range.start.toISOString(),
           endTime: range.end.toISOString()
         },
@@ -666,7 +673,6 @@ export default function Booking({ user }) {
                 textColor = 'var(--success)'
               }
 
-              // Determine cursor based on role and slot state
               let cursor = 'default'
               if (isAdmin && slot.isAvailable) cursor = 'pointer'
               else if (isAdmin && slot.isBooked && slot.isAdminBooking) cursor = 'pointer'
