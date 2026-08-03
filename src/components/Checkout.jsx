@@ -1,8 +1,6 @@
-// src/components/Checkout.jsx
-
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { createBookingWithCheckout } from '../lib/supabase'
+import { supabase, createBookingWithCheckout } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Checkout({ user }) {
@@ -13,26 +11,13 @@ export default function Checkout({ user }) {
 
   const { date, slot, duration } = location.state || {}
 
-  // Handle missing data
   if (!date || !slot || !duration) {
     navigate('/booking')
     return null
   }
 
-  // Parse dates - handle both Date objects and ISO strings
-  const startTime = slot.startTime instanceof Date 
-    ? slot.startTime 
-    : new Date(slot.startTime)
-  
-  const endTime = slot.endTime instanceof Date 
-    ? slot.endTime 
-    : new Date(slot.endTime)
-
-  // Check if dates are valid
-  if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-    navigate('/booking')
-    return null
-  }
+  const startTime = new Date(slot.startTime)
+  const endTime = new Date(slot.endTime)
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
@@ -45,6 +30,28 @@ export default function Checkout({ user }) {
   async function handleConfirmBooking() {
     setLoading(true)
 
+    // ✅ Re-check availability before inserting
+    const { data: existing, error: checkError } = await supabase
+      .from('bookings')
+      .select('*')
+      .in('status', ['pending', 'active'])
+      .filter('start_time', 'lt', endTime.toISOString())
+      .filter('end_time', 'gt', startTime.toISOString())
+
+    if (checkError) {
+      showToast('❌ Gagal memeriksa ketersediaan', 'error')
+      setLoading(false)
+      return
+    }
+
+    if (existing.length > 0) {
+      showToast('❌ Slot sudah tidak tersedia', 'error')
+      setLoading(false)
+      navigate('/booking')
+      return
+    }
+
+    // ✅ Proceed with booking creation
     const { data, error } = await createBookingWithCheckout(
       user.id,
       { date: date.toISOString ? date.toISOString().split('T')[0] : date.split('T')[0], hour: slot.hour },
