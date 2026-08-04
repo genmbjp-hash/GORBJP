@@ -6,7 +6,19 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ============================================
-// AUTH
+// PRICE CALCULATION
+// ============================================
+
+export function calculatePrice(duration) {
+  if (duration <= 2) {
+    return duration * 50000
+  } else {
+    return (2 * 50000) + ((duration - 2) * 30000)
+  }
+}
+
+// ============================================
+// AUTH FUNCTIONS
 // ============================================
 
 export async function signUp(email, password, fullName, displayName, phone, block, houseNumber) {
@@ -55,7 +67,7 @@ export async function getProfile(userId) {
 }
 
 // ============================================
-// BOOKINGS
+// BOOKING FUNCTIONS
 // ============================================
 
 export async function getBookingsForDate(dateObj) {
@@ -138,6 +150,8 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
 
+  const price = calculatePrice(duration)
+
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -146,7 +160,9 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       duration_hours: duration,
-      price: 0,
+      price: price,
+      original_price: price,
+      discount_applied: 0,
       payment_status: 'free',
       payment_method: 'free',
       status: 'pending'
@@ -180,129 +196,6 @@ export async function cancelBooking(bookingId, userId) {
     .select()
     .single()
   return { data, error }
-}
-
-// ============================================
-// ADMIN
-// ============================================
-
-export async function getPendingUsers() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-  return { data, error }
-}
-
-export async function approveUser(userId, adminId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: adminId })
-    .eq('id', userId)
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function rejectUser(userId, adminId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ status: 'rejected', approved_at: new Date().toISOString(), approved_by: adminId })
-    .eq('id', userId)
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function generateMasterPin(adminId, durationMinutes, purpose = '') {
-  const pin = String(Math.floor(1000 + Math.random() * 9000))
-  const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000)
-  const { data, error } = await supabase
-    .from('master_pins')
-    .insert({
-      pin, duration_minutes: durationMinutes, purpose,
-      generated_by: adminId,
-      expires_at: expiresAt.toISOString(),
-      active: true
-    })
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function getActiveMasterPins() {
-  const { data, error } = await supabase
-    .from('master_pins')
-    .select('*, profiles(full_name)')
-    .eq('active', true)
-    .gte('expires_at', new Date().toISOString())
-  return { data, error }
-}
-
-export async function deactivateMasterPin(pinId, adminId) {
-  const { data, error } = await supabase
-    .from('master_pins')
-    .update({ active: false })
-    .eq('id', pinId)
-    .select()
-    .single()
-  return { data, error }
-}
-
-// ============================================
-// DEVICE
-// ============================================
-
-export async function getDeviceStatus() {
-  const { data, error } = await supabase
-    .from('device_status')
-    .select('*')
-    .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
-    .maybeSingle()
-  return { data, error }
-}
-
-export async function forceLampOn(adminId) {
-  const { data: existing } = await getDeviceStatus()
-  let result
-  if (!existing) {
-    result = await supabase.from('device_status').insert({
-      device_mac: 'AA:BB:CC:DD:EE:FF',
-      relay_state: true,
-      master_mode: false,
-      last_seen: new Date().toISOString()
-    }).select().single()
-  } else {
-    result = await supabase
-      .from('device_status')
-      .update({ relay_state: true, last_seen: new Date().toISOString() })
-      .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
-      .select()
-      .maybeSingle()
-  }
-  return result
-}
-
-export async function forceLampOff(adminId) {
-  const { data: existing } = await getDeviceStatus()
-  let result
-  if (!existing) {
-    result = await supabase.from('device_status').insert({
-      device_mac: 'AA:BB:CC:DD:EE:FF',
-      relay_state: false,
-      master_mode: false,
-      last_seen: new Date().toISOString()
-    }).select().single()
-  } else {
-    result = await supabase
-      .from('device_status')
-      .update({ relay_state: false, last_seen: new Date().toISOString() })
-      .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
-      .select()
-      .maybeSingle()
-  }
-  return result
 }
 
 // ============================================
@@ -347,8 +240,10 @@ export async function createPendingBooking(userId, slotData, duration, price) {
       end_time: endDateTime.toISOString(),
       duration_hours: duration,
       price: price,
+      original_price: price,
+      discount_applied: 0,
       payment_status: 'pending',
-      payment_method: 'dummy',
+      payment_method: 'pending',
       status: 'pending',
       payment_deadline: paymentDeadline.toISOString()
     })
@@ -436,140 +331,7 @@ export async function getPendingBooking(bookingId) {
 // VOUCHER FUNCTIONS
 // ============================================
 
-export async function createVoucher(code, description, adminId) {
-  const { data, error } = await supabase
-    .from('vouchers')
-    .insert({
-      code: code.toUpperCase(),
-      description: description,
-      created_by: adminId,
-      active: true
-    })
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function getVouchers() {
-  const { data, error } = await supabase
-    .from('vouchers')
-    .select('*, profiles(full_name, display_name)')
-    .order('created_at', { ascending: false })
-  return { data, error }
-}
-
-export async function deactivateVoucher(voucherId) {
-  const { data, error } = await supabase
-    .from('vouchers')
-    .update({ active: false })
-    .eq('id', voucherId)
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function deleteVoucher(voucherId) {
-  const { data, error } = await supabase
-    .from('vouchers')
-    .delete()
-    .eq('id', voucherId)
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function validateVoucher(code) {
-  const { data, error } = await supabase
-    .from('vouchers')
-    .select('*')
-    .eq('code', code.toUpperCase())
-    .eq('active', true)
-    .single()
-  return { data, error }
-}
-
-// ============================================
-// BOOKING WITH VOUCHER (FREE)
-// ============================================
-
-export async function createBookingWithVoucher(userId, slotData, duration, voucherId) {
-  const { date, hour } = slotData
-
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
-
-  const startOfDay = new Date(date)
-  startOfDay.setHours(0, 0, 0, 0)
-  const endOfDay = new Date(date)
-  endOfDay.setHours(23, 59, 59, 999)
-
-  const { data: existing, error: checkError } = await supabase
-    .from('bookings')
-    .select('*')
-    .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDay.toISOString())
-    .lte('start_time', endOfDay.toISOString())
-    .filter('start_time', 'lt', endDateTime.toISOString())
-    .filter('end_time', 'gt', startDateTime.toISOString())
-
-  if (checkError) return { error: checkError }
-  if (existing.length > 0) {
-    return { error: { message: 'Slot sudah tidak tersedia' } }
-  }
-
-  // Generate PIN
-  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
-  if (pinError) return { error: pinError }
-
-  // Create booking with voucher (active immediately)
-  const { data, error } = await supabase
-    .from('bookings')
-    .insert({
-      user_id: userId,
-      pin: pinData,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      duration_hours: duration,
-      price: 0,
-      payment_status: 'free',
-      payment_method: 'voucher',
-      status: 'active',
-      voucher_id: voucherId
-    })
-    .select()
-    .single()
-
-  if (!error) {
-    // Send Telegram notification
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      if (profile) {
-        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
-        await fetch(EDGE_FUNCTION_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ booking: data, profile, type: 'booking' })
-        })
-      }
-    } catch (err) { /* silent fail */ }
-  }
-
-  return { data, error }
-}
-
-// ============================================
-// VOUCHER FUNCTIONS
-// ============================================
-
-// 1. Validate and get voucher details
 export async function validateVoucher(code, duration) {
-  // Case-insensitive lookup
   const { data, error } = await supabase
     .from('vouchers')
     .select('*')
@@ -579,22 +341,18 @@ export async function validateVoucher(code, duration) {
   if (error) return { error: { message: 'Kode voucher tidak ditemukan' } }
   if (!data) return { error: { message: 'Kode voucher tidak ditemukan' } }
 
-  // Check if active
   if (!data.active) {
     return { error: { message: 'Voucher sudah tidak aktif' } }
   }
 
-  // Check expiry
   if (data.expires_at && new Date(data.expires_at) < new Date()) {
     return { error: { message: 'Voucher sudah kadaluarsa' } }
   }
 
-  // Check max uses
   if (data.max_uses > 0 && data.used_count >= data.max_uses) {
     return { error: { message: 'Voucher sudah mencapai batas penggunaan' } }
   }
 
-  // Check duration limits
   if (duration < data.min_duration) {
     return { error: { message: `Minimal booking ${data.min_duration} jam untuk voucher ini` } }
   }
@@ -606,7 +364,6 @@ export async function validateVoucher(code, duration) {
   return { data, error: null }
 }
 
-// 2. Calculate discount
 export function calculateDiscount(originalPrice, voucher) {
   if (!voucher) return 0
 
@@ -625,13 +382,11 @@ export function calculateDiscount(originalPrice, voucher) {
   return 0
 }
 
-// 3. Get final price after discount
 export function calculateFinalPrice(originalPrice, voucher) {
   const discount = calculateDiscount(originalPrice, voucher)
   return originalPrice - discount
 }
 
-// 4. Create booking with voucher
 export async function createBookingWithVoucher(userId, slotData, duration, voucherId) {
   const { date, hour } = slotData
 
@@ -640,7 +395,6 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // Check availability
   const startOfDay = new Date(date)
   startOfDay.setHours(0, 0, 0, 0)
   const endOfDay = new Date(date)
@@ -660,7 +414,6 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
-  // Get voucher details
   const { data: voucher, error: voucherError } = await supabase
     .from('vouchers')
     .select('*')
@@ -669,16 +422,13 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
 
   if (voucherError) return { error: voucherError }
 
-  // Calculate price
   const originalPrice = calculatePrice(duration)
   const discount = calculateDiscount(originalPrice, voucher)
   const finalPrice = originalPrice - discount
 
-  // Generate PIN
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
 
-  // Create booking with voucher
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -700,13 +450,11 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
 
   if (error) return { error }
 
-  // Update voucher usage count
   await supabase
     .from('vouchers')
-    .update({ used_count: supabase.rpc('increment', { row_id: voucherId }) })
+    .update({ used_count: data.used_count + 1 })
     .eq('id', voucherId)
 
-  // Track usage
   await supabase
     .from('voucher_usage')
     .insert({
@@ -715,7 +463,6 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
       booking_id: data.id
     })
 
-  // Send Telegram notification
   try {
     const { data: profile } = await supabase
       .from('profiles')
@@ -735,7 +482,6 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
   return { data, error }
 }
 
-// 5. Admin: Create voucher
 export async function createVoucher(code, description, discountType, discountValue, maxUses, expiresAt, minDuration, maxDuration, adminId) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -757,7 +503,6 @@ export async function createVoucher(code, description, discountType, discountVal
   return { data, error }
 }
 
-// 6. Admin: Get all vouchers
 export async function getVouchers() {
   const { data, error } = await supabase
     .from('vouchers')
@@ -767,7 +512,6 @@ export async function getVouchers() {
   return { data, error }
 }
 
-// 7. Admin: Update voucher
 export async function updateVoucher(voucherId, updates) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -782,7 +526,6 @@ export async function updateVoucher(voucherId, updates) {
   return { data, error }
 }
 
-// 8. Admin: Deactivate voucher
 export async function deactivateVoucher(voucherId) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -794,7 +537,6 @@ export async function deactivateVoucher(voucherId) {
   return { data, error }
 }
 
-// 9. Admin: Delete voucher
 export async function deleteVoucher(voucherId) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -804,4 +546,157 @@ export async function deleteVoucher(voucherId) {
     .single()
 
   return { data, error }
+}
+
+// ============================================
+// ADMIN FUNCTIONS
+// ============================================
+
+export async function getPendingUsers() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+  return { data, error }
+}
+
+export async function approveUser(userId, adminId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: adminId })
+    .eq('id', userId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function rejectUser(userId, adminId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ status: 'rejected', approved_at: new Date().toISOString(), approved_by: adminId })
+    .eq('id', userId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function generateMasterPin(adminId, durationMinutes, purpose = '') {
+  const pin = String(Math.floor(1000 + Math.random() * 9000))
+  const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000)
+  const { data, error } = await supabase
+    .from('master_pins')
+    .insert({
+      pin, duration_minutes: durationMinutes, purpose,
+      generated_by: adminId,
+      expires_at: expiresAt.toISOString(),
+      active: true
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function getActiveMasterPins() {
+  const { data, error } = await supabase
+    .from('master_pins')
+    .select('*, profiles(full_name)')
+    .eq('active', true)
+    .gte('expires_at', new Date().toISOString())
+  return { data, error }
+}
+
+export async function deactivateMasterPin(pinId, adminId) {
+  const { data, error } = await supabase
+    .from('master_pins')
+    .update({ active: false })
+    .eq('id', pinId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+// ============================================
+// DEVICE FUNCTIONS
+// ============================================
+
+export async function getDeviceStatus() {
+  const { data, error } = await supabase
+    .from('device_status')
+    .select('*')
+    .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
+    .maybeSingle()
+  return { data, error }
+}
+
+export async function forceLampOn(adminId) {
+  const { data: existing } = await getDeviceStatus()
+  let result
+  if (!existing) {
+    result = await supabase.from('device_status').insert({
+      device_mac: 'AA:BB:CC:DD:EE:FF',
+      relay_state: true,
+      master_mode: false,
+      last_seen: new Date().toISOString()
+    }).select().single()
+  } else {
+    result = await supabase
+      .from('device_status')
+      .update({ relay_state: true, last_seen: new Date().toISOString() })
+      .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
+      .select()
+      .maybeSingle()
+  }
+  return result
+}
+
+export async function forceLampOff(adminId) {
+  const { data: existing } = await getDeviceStatus()
+  let result
+  if (!existing) {
+    result = await supabase.from('device_status').insert({
+      device_mac: 'AA:BB:CC:DD:EE:FF',
+      relay_state: false,
+      master_mode: false,
+      last_seen: new Date().toISOString()
+    }).select().single()
+  } else {
+    result = await supabase
+      .from('device_status')
+      .update({ relay_state: false, last_seen: new Date().toISOString() })
+      .eq('device_mac', 'AA:BB:CC:DD:EE:FF')
+      .select()
+      .maybeSingle()
+  }
+  return result
+}
+
+// ============================================
+// ACTIVITY LOGS
+// ============================================
+
+export async function logActivity(userId, event, pin = null, details = null) {
+  const { error } = await supabase
+    .from('activity_logs')
+    .insert({
+      user_id: userId,
+      event: event,
+      pin: pin,
+      details: details
+    })
+  return { error }
+}
+
+// ============================================
+// CHECK ADMIN
+// ============================================
+
+export async function isAdmin(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+  if (error || !data) return false
+  return data.role === 'admin'
 }
