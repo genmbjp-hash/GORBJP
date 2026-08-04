@@ -11,10 +11,10 @@ export default function Payment({ user }) {
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState(null)
 
-  const { bookingId, date, slot, duration, price } = location.state || {}
+  const { bookingId, date, slot, duration, price, originalPrice, discountAmount } = location.state || {}
 
   // ✅ Replace with your admin WhatsApp number (without +)
-  const ADMIN_PHONE = '6281998889199'
+  const ADMIN_PHONE = '6281234567890'
   const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
 
   useEffect(() => {
@@ -63,6 +63,8 @@ export default function Payment({ user }) {
   const dateStr = booking ? booking.start_time.split('T')[0] : date
   const durationHours = booking ? booking.duration_hours : duration
   const priceTotal = booking ? booking.price : price
+  const originalPriceTotal = booking ? booking.original_price : originalPrice
+  const discountTotal = booking ? booking.discount_applied : discountAmount
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
@@ -165,9 +167,26 @@ Terima kasih. 🙏`
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
             <span style={{ color: 'var(--gray-600)' }}>💰 Total</span>
             <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '18px' }}>
-              Rp {priceTotal.toLocaleString()}
+              {discountTotal > 0 ? (
+                <>
+                  <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', marginRight: '8px' }}>
+                    Rp {originalPriceTotal.toLocaleString()}
+                  </span>
+                  Rp {priceTotal.toLocaleString()}
+                </>
+              ) : (
+                `Rp ${priceTotal.toLocaleString()}`
+              )}
             </span>
           </div>
+          {discountTotal > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', marginTop: '4px', borderTop: '1px solid var(--gray-200)' }}>
+              <span style={{ color: 'var(--gray-600)' }}>🎫 Diskon</span>
+              <span style={{ fontWeight: 600, color: 'var(--success)' }}>
+                - Rp {discountTotal.toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: '16px' }}>
