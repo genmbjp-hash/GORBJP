@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { 
   supabase, 
   createPendingBooking, 
-  cancelExpiredPendingBookings, 
   validateVoucher, 
   calculateDiscount, 
   calculateFinalPrice,
@@ -55,7 +54,7 @@ export default function Checkout({ user }) {
 
   function formatDiscountLabel(voucher) {
     if (!voucher) return ''
-    if (voucher.discount_type === 'free') return 'Gratis (100%)'
+    if (voucher.discount_type === 'free') return 'Gratis (Rp 1)'
     if (voucher.discount_type === 'percentage') return `${voucher.discount_value}%`
     if (voucher.discount_type === 'fixed') return `Rp ${voucher.discount_value.toLocaleString()}`
     return ''
@@ -86,12 +85,9 @@ export default function Checkout({ user }) {
   async function handleConfirmBooking() {
     setLoading(true)
 
-    await cancelExpiredPendingBookings()
-
     let result
 
     if (voucherApplied) {
-      // Create booking with voucher (free or discounted)
       const { data, error } = await createBookingWithVoucher(
         user.id,
         { date: date, hour: slot.hour },
@@ -105,11 +101,19 @@ export default function Checkout({ user }) {
         return
       }
 
-      navigate('/payment-success', {
-        state: { booking: data }
+      // Navigate to payment page (voucher booking also needs payment)
+      navigate('/payment', {
+        state: {
+          bookingId: data.id,
+          date: date,
+          slot: slot,
+          duration: duration,
+          price: data.price,
+          originalPrice: data.original_price,
+          discountAmount: data.discount_applied
+        }
       })
     } else {
-      // Create pending booking (manual payment)
       const { data, error } = await createPendingBooking(
         user.id,
         { date: date, hour: slot.hour },
@@ -131,7 +135,7 @@ export default function Checkout({ user }) {
           duration: duration,
           price: finalPrice,
           originalPrice: originalPrice,
-          discountAmount: discountAmount
+          discountAmount: 0
         }
       })
     }
@@ -240,7 +244,7 @@ export default function Checkout({ user }) {
           {voucherApplied && (
             <p style={{ color: 'var(--success)', fontSize: '13px', marginTop: '4px' }}>
               ✅ Voucher "{voucherApplied.code}" diterapkan! 
-              {voucherApplied.discount_type === 'free' && ' Booking gratis!'}
+              {voucherApplied.discount_type === 'free' && ' Booking Rp 1 (perlu konfirmasi admin)'}
               {voucherApplied.discount_type === 'percentage' && ` Diskon ${voucherApplied.discount_value}%`}
               {voucherApplied.discount_type === 'fixed' && ` Diskon Rp ${voucherApplied.discount_value.toLocaleString()}`}
             </p>
@@ -249,12 +253,12 @@ export default function Checkout({ user }) {
 
         <div style={{ background: '#FEF3C7', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
           <p style={{ fontSize: '14px', color: '#92400E' }}>
-            {voucherApplied ? '✅ Booking dengan voucher! Slot akan langsung aktif.' : '⏰ Slot akan ditahan selama 10 menit untuk menyelesaikan pembayaran.'}
+            ℹ️ Semua booking memerlukan konfirmasi admin setelah pembayaran.
           </p>
         </div>
 
         <button onClick={handleConfirmBooking} className="btn btn-primary" disabled={loading}>
-          {loading ? '⏳ Memproses...' : voucherApplied ? '✅ Booking dengan Voucher' : '✅ Konfirmasi Booking'}
+          {loading ? '⏳ Memproses...' : '✅ Konfirmasi Booking'}
         </button>
 
         <button onClick={() => navigate('/booking')} className="btn btn-outline" style={{ marginTop: '8px' }}>
