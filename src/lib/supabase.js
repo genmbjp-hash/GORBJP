@@ -304,3 +304,135 @@ export async function forceLampOff(adminId) {
   }
   return result
 }
+
+// ============================================
+// PAYMENT FUNCTIONS
+// ============================================
+
+export async function createPendingBooking(userId, slotData, duration) {
+  const { date, hour } = slotData
+
+  const startDateTime = new Date(date)
+  startDateTime.setHours(hour, 0, 0, 0)
+  const endDateTime = new Date(startDateTime)
+  endDateTime.setHours(hour + duration, 0, 0, 0)
+
+  // Check if slot is available
+  const startOfDay = new Date(date)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(date)
+  endOfDay.setHours(23, 59, 59, 999)
+
+  const { data: existing, error: checkError } = await supabase
+    .from('bookings')
+    .select('*')
+    .in('status', ['pending', 'active'])
+    .gte('start_time', startOfDay.toISOString())
+    .lte('start_time', endOfDay.toISOString())
+    .filter('start_time', 'lt', endDateTime.toISOString())
+    .filter('end_time', 'gt', startDateTime.toISOString())
+
+  if (checkError) return { error: checkError }
+  if (existing.length > 0) {
+    return { error: { message: 'Slot sudah tidak tersedia' } }
+  }
+
+  // Create pending booking (no PIN yet)
+  const paymentDeadline = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      user_id: userId,
+      pin: null,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration_hours: duration,
+      price: duration * 30000, // Rp 30.000 per hour
+      payment_status: 'pending',
+      payment_method: 'dummy',
+      status: 'pending',
+      payment_deadline: paymentDeadline.toISOString()
+    })
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+export async function confirmPayment(bookingId) {
+  // Generate PIN
+  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
+  if (pinError) return { error: pinError }
+
+  // Update booking: pending → active, set PIN
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({
+      status: 'active',
+      pin: pinData,
+      payment_status: 'paid'
+    })
+    .eq('id', bookingId)
+    .eq('status', 'pending')
+    .select()
+    .single()
+
+  if (!error) {
+    // Send Telegram notification
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user_id)
+        .single()
+      if (profile) {
+        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
+        await fetch(EDGE_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ booking: data, profile, type: 'booking' })
+        })
+      }
+    } catch (err) { /* silent fail */ }
+  }
+
+  return { data, error }
+}
+
+export async function cancelPendingBooking(bookingId) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled', payment_status: 'failed' })
+    .eq('id', bookingId)
+    .eq('status', 'pending')
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function cancelExpiredPendingBookings() {
+  const now = new Date().toISOString()
+  
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled', payment_status: 'expired' })
+    .eq('status', 'pending')
+    .lt('payment_deadline', now)
+    .select()
+
+  if (data && data.length > 0) {
+    console.log(`⏰ ${data.length} expired pending bookings cancelled`)
+  }
+
+  return { data, error }
+}
+
+export async function getPendingBooking(bookingId) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('id', bookingId)
+    .single()
+  return { data, error }
+}
