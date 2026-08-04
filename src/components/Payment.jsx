@@ -14,13 +14,13 @@ export default function Payment({ user }) {
   const { bookingId, date, slot, duration, price } = location.state || {}
 
   // ✅ Replace with your admin WhatsApp number (without +)
-  const WHATSAPP_LINK = 'https://chat.whatsapp.com/EwtdbgPPRxL2wpWcTwnhXx'
+  const ADMIN_PHONE = '6281998889199'
+  const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
 
   useEffect(() => {
     const findOrCheckBooking = async () => {
       setIsLoading(true)
       
-      // Get user profile first
       const { data: profileData } = await supabase
         .from('profiles')
         .select('display_name, full_name, block, house_number')
@@ -103,7 +103,6 @@ export default function Payment({ user }) {
   function getWhatsAppMessage() {
     if (!booking) return ''
 
-    // Build customer name with block and house number
     const customerName = profile
       ? `${profile.display_name || profile.full_name || 'Customer'} — Blok ${profile.block || '-'} No. ${profile.house_number || '-'}`
       : user?.email || 'Customer'
