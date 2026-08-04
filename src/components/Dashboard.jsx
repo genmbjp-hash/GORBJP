@@ -29,7 +29,6 @@ export default function Dashboard({ user, profile }) {
     setLoading(false)
   }
 
-  // Clean up timer on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -38,7 +37,6 @@ export default function Dashboard({ user, profile }) {
     }
   }, [])
 
-  // Load bookings on mount
   useEffect(() => {
     const updateAndLoad = async () => {
       await completeExpiredBookings()
@@ -47,9 +45,7 @@ export default function Dashboard({ user, profile }) {
     updateAndLoad()
   }, [])
 
-  // Timer for pending booking (runs separately, doesn't trigger full re-render)
   useEffect(() => {
-    // Clear existing timer
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
@@ -60,12 +56,10 @@ export default function Dashboard({ user, profile }) {
       return
     }
 
-    // Initial time
     const deadline = new Date(pendingBooking.payment_deadline)
     const initialRemaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
     setTimeLeft(initialRemaining)
 
-    // Start interval
     timerRef.current = setInterval(() => {
       const deadline = new Date(pendingBooking.payment_deadline)
       const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
@@ -74,7 +68,6 @@ export default function Dashboard({ user, profile }) {
       if (remaining === 0) {
         clearInterval(timerRef.current)
         timerRef.current = null
-        // Reload bookings to update status
         loadBookings()
       }
     }, 1000)
@@ -85,7 +78,7 @@ export default function Dashboard({ user, profile }) {
         timerRef.current = null
       }
     }
-  }, [pendingBooking?.id]) // Only re-run when pending booking ID changes
+  }, [pendingBooking?.id])
 
   async function handleCancelPending() {
     if (!pendingBooking) return
@@ -155,6 +148,23 @@ export default function Dashboard({ user, profile }) {
     return <span className={`badge ${map[status] || ''}`}>{labels[status] || status}</span>
   }
 
+  function getPaymentBadge(paymentStatus, discountApplied) {
+    if (discountApplied > 0) {
+      return <span className="badge" style={{ marginLeft: '4px', background: '#E0E7FF', color: '#3730A3' }}>🎫 Voucher</span>
+    }
+    const styles = {
+      'free': { bg: '#E0E7FF', color: '#3730A3', label: '🆓 Gratis' },
+      'paid': { bg: '#D1FAE5', color: '#065F46', label: '💰 Dibayar' },
+      'pending': { bg: '#FEF3C7', color: '#92400E', label: '⏳ Pending' },
+    }
+    const style = styles[paymentStatus] || styles['pending']
+    return (
+      <span className="badge" style={{ marginLeft: '4px', background: style.bg, color: style.color }}>
+        {style.label}
+      </span>
+    )
+  }
+
   const total = bookings.length
   const active = bookings.filter(b => b.status === 'active').length
   const upcoming = bookings.filter(b => b.status === 'pending').length
@@ -215,6 +225,7 @@ export default function Dashboard({ user, profile }) {
         ) : (
           bookings.map(b => {
             const isPending = b.status === 'pending'
+            const hasVoucher = b.voucher_id && b.discount_applied > 0
             
             return (
               <div key={b.id} className="booking-item" style={{ 
@@ -226,12 +237,12 @@ export default function Dashboard({ user, profile }) {
                   <div className="booking-time">{formatTime(b.start_time)} - {formatTime(b.end_time)}</div>
                   <div style={{ marginTop: '4px' }}>
                     {getStatusBadge(b.status)}
-                    {b.payment_status === 'paid' && (
-  <span className="badge" style={{ marginLeft: '4px', background: '#D1FAE5', color: '#065F46' }}>💰 Dibayar</span>
-)}
-{b.payment_status === 'pending' && (
-  <span className="badge" style={{ marginLeft: '4px', background: '#FEF3C7', color: '#92400E' }}>⏳ Menunggu Pembayaran</span>
-)}
+                    {getPaymentBadge(b.payment_status, b.discount_applied)}
+                    {hasVoucher && b.discount_applied > 0 && (
+                      <span style={{ marginLeft: '4px', fontSize: '11px', color: 'var(--gray-500)' }}>
+                        (Diskon Rp {b.discount_applied.toLocaleString()})
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -251,7 +262,9 @@ export default function Dashboard({ user, profile }) {
                               endTime: b.end_time
                             },
                             duration: b.duration_hours,
-                            price: b.duration_hours * 30000
+                            price: b.price,
+                            originalPrice: b.original_price || b.price,
+                            discountAmount: b.discount_applied || 0
                           }
                         })}
                         className="btn btn-warning btn-sm"
