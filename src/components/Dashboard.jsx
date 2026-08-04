@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPendingBooking } from '../lib/supabase'
 import { useToast } from '../App'
@@ -6,9 +6,6 @@ import { useToast } from '../App'
 export default function Dashboard({ user, profile }) {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [pendingBooking, setPendingBooking] = useState(null)
-  const [timeLeft, setTimeLeft] = useState(0)
-  const timerRef = useRef(null)
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -16,26 +13,8 @@ export default function Dashboard({ user, profile }) {
     setLoading(true)
     const { data } = await getUserBookings(user.id)
     setBookings(data || [])
-    
-    const pending = data?.find(b => b.status === 'pending')
-    setPendingBooking(pending || null)
-    
-    if (pending) {
-      const deadline = new Date(pending.payment_deadline)
-      const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
-      setTimeLeft(remaining)
-    }
-    
     setLoading(false)
   }
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     const updateAndLoad = async () => {
@@ -45,42 +24,8 @@ export default function Dashboard({ user, profile }) {
     updateAndLoad()
   }, [])
 
-  useEffect(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-
-    if (!pendingBooking) {
-      setTimeLeft(0)
-      return
-    }
-
-    const deadline = new Date(pendingBooking.payment_deadline)
-    const initialRemaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
-    setTimeLeft(initialRemaining)
-
-    timerRef.current = setInterval(() => {
-      const deadline = new Date(pendingBooking.payment_deadline)
-      const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
-      setTimeLeft(remaining)
-      
-      if (remaining === 0) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-        loadBookings()
-      }
-    }, 1000)
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-    }
-  }, [pendingBooking?.id])
-
   async function handleCancelPending() {
+    const pendingBooking = bookings.find(b => b.status === 'pending')
     if (!pendingBooking) return
     if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
 
@@ -114,12 +59,6 @@ export default function Dashboard({ user, profile }) {
   async function handleLogout() {
     await signOut()
     navigate('/login')
-  }
-
-  function formatTimeLeft(seconds) {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
   function formatDate(dateStr) {
@@ -167,7 +106,8 @@ export default function Dashboard({ user, profile }) {
 
   const total = bookings.length
   const active = bookings.filter(b => b.status === 'active').length
-  const upcoming = bookings.filter(b => b.status === 'pending').length
+  const pending = bookings.filter(b => b.status === 'pending').length
+  const pendingBooking = bookings.find(b => b.status === 'pending')
 
   return (
     <div className="container" style={{ paddingTop: '16px' }}>
@@ -201,7 +141,7 @@ export default function Dashboard({ user, profile }) {
           <div className="stat-label">Aktif</div>
         </div>
         <div className="stat-card">
-          <div className="stat-number">{upcoming}</div>
+          <div className="stat-number">{pending}</div>
           <div className="stat-label">Menunggu</div>
         </div>
       </div>
@@ -248,9 +188,6 @@ export default function Dashboard({ user, profile }) {
                 <div style={{ textAlign: 'right' }}>
                   {isPending ? (
                     <div>
-                      <div style={{ fontSize: '14px', color: 'var(--warning)', fontWeight: 600 }}>
-                        ⏰ {formatTimeLeft(timeLeft)}
-                      </div>
                       <button
                         onClick={() => navigate('/payment', { 
                           state: { 
@@ -269,9 +206,8 @@ export default function Dashboard({ user, profile }) {
                         })}
                         className="btn btn-warning btn-sm"
                         style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
-                        disabled={timeLeft <= 0}
                       >
-                        {timeLeft > 0 ? '💳 Lanjutkan Pembayaran' : '⏰ Kadaluarsa'}
+                        💳 Lanjutkan Pembayaran
                       </button>
                       <button
                         onClick={handleCancelPending}
