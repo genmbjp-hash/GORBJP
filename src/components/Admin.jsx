@@ -12,7 +12,12 @@ import {
   forceLampOff,
   getAllBookings,
   signOut,
-  completeExpiredBookings
+  completeExpiredBookings,
+  createVoucher,
+  getVouchers,
+  deactivateVoucher,
+  deleteVoucher,
+  supabase
 } from '../lib/supabase'
 import { useToast } from '../App'
 
@@ -27,6 +32,13 @@ export default function Admin({ user }) {
   const [loading, setLoading] = useState(true)
   const [masterPinResult, setMasterPinResult] = useState(null)
   const [newBookingsCount, setNewBookingsCount] = useState(0)
+  
+  // Voucher state
+  const [vouchers, setVouchers] = useState([])
+  const [newVoucherCode, setNewVoucherCode] = useState('')
+  const [newVoucherDesc, setNewVoucherDesc] = useState('')
+  const [showVoucherModal, setShowVoucherModal] = useState(false)
+
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -34,6 +46,7 @@ export default function Admin({ user }) {
     const updateAndLoad = async () => {
       await completeExpiredBookings()
       await loadAllData()
+      await loadVouchers()
     }
     updateAndLoad()
 
@@ -89,6 +102,28 @@ export default function Admin({ user }) {
         total: data.length
       })
     }
+  }
+
+  async function loadVouchers() {
+    const { data } = await getVouchers()
+    setVouchers(data || [])
+  }
+
+  async function handleCreateVoucher() {
+    if (!newVoucherCode.trim()) {
+      showToast('❌ Masukkan kode voucher', 'error')
+      return
+    }
+    const { error } = await createVoucher(newVoucherCode, newVoucherDesc, user.id)
+    if (error) {
+      showToast('❌ ' + error.message, 'error')
+      return
+    }
+    showToast('✅ Voucher created: ' + newVoucherCode, 'success')
+    setNewVoucherCode('')
+    setNewVoucherDesc('')
+    setShowVoucherModal(false)
+    loadVouchers()
   }
 
   async function handleApprove(userId) {
@@ -167,6 +202,50 @@ export default function Admin({ user }) {
     navigate('/login')
   }
 
+  async function handleConfirmPayment(bookingId) {
+    if (!confirm('Konfirmasi pembayaran untuk booking ini?')) return
+    
+    // Generate PIN
+    const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
+    if (pinError) {
+      showToast('❌ Gagal generate PIN: ' + pinError.message, 'error')
+      return
+    }
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        status: 'active',
+        pin: pinData,
+        payment_status: 'paid',
+        admin_confirmed_at: new Date().toISOString()
+      })
+      .eq('id', bookingId)
+
+    if (error) {
+      showToast('❌ Gagal konfirmasi: ' + error.message, 'error')
+    } else {
+      showToast('✅ Pembayaran dikonfirmasi! PIN: ' + pinData, 'success')
+      loadAllBookings()
+    }
+  }
+
+  async function handleCancelBooking(bookingId) {
+    if (!confirm('Batalkan booking ini?')) return
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', bookingId)
+
+    if (error) {
+      showToast('❌ Gagal membatalkan: ' + error.message, 'error')
+    } else {
+      showToast('✅ Booking dibatalkan', 'success')
+      loadAllBookings()
+    }
+  }
+
   function formatDate(dateStr) {
     const d = new Date(dateStr)
     return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -199,10 +278,11 @@ export default function Admin({ user }) {
 
   function getPaymentBadge(paymentStatus) {
     const styles = {
-      'free': { bg: '#FEF3C7', color: '#92400E', label: '🆓 Gratis' },
+      'free': { bg: '#E0E7FF', color: '#3730A3', label: '🆓 Gratis' },
       'paid': { bg: '#D1FAE5', color: '#065F46', label: '💰 Dibayar' },
-      'pending': { bg: '#FEE2E2', color: '#991B1B', label: '⏳ Pending' },
+      'pending': { bg: '#FEF3C7', color: '#92400E', label: '⏳ Pending' },
       'failed': { bg: '#FEE2E2', color: '#991B1B', label: '❌ Gagal' },
+      'expired': { bg: '#FEE2E2', color: '#991B1B', label: '⏰ Expired' },
       'refunded': { bg: '#E0E7FF', color: '#3730A3', label: '↩️ Dikembalikan' }
     }
     const style = styles[paymentStatus] || styles['pending']
@@ -359,6 +439,130 @@ export default function Admin({ user }) {
         )}
       </div>
 
+      {/* Voucher Management */}
+      <div className="card" style={{ border: '2px solid var(--primary)' }}>
+        <div className="card-header">
+          <span className="card-title">🎫 Voucher Management</span>
+          <button 
+            onClick={() => setShowVoucherModal(true)} 
+            className="btn btn-primary btn-sm"
+            style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}
+          >
+            + Create Voucher
+          </button>
+        </div>
+        
+        {vouchers.length === 0 ? (
+          <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada voucher</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {vouchers.map(v => (
+              <div key={v.id} className="user-item">
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '16px', color: 'var(--primary)' }}>
+                    {v.code}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+                    {v.description || 'Tidak ada deskripsi'} • Dibuat: {new Date(v.created_at).toLocaleDateString('id-ID')}
+                  </div>
+                  <div style={{ marginTop: '4px' }}>
+                    <span className={`badge ${v.active ? 'badge-active' : 'badge-cancelled'}`}>
+                      {v.active ? '✅ Active' : '❌ Inactive'}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {v.active && (
+                    <button 
+                      onClick={async () => {
+                        if (confirm('Nonaktifkan voucher ini?')) {
+                          await deactivateVoucher(v.id)
+                          loadVouchers()
+                          showToast('✅ Voucher dinonaktifkan', 'success')
+                        }
+                      }}
+                      className="btn btn-warning btn-sm"
+                      style={{ width: 'auto', minHeight: '30px', padding: '4px 12px', fontSize: '12px' }}
+                    >
+                      Nonaktifkan
+                    </button>
+                  )}
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Hapus voucher ini?')) {
+                        await deleteVoucher(v.id)
+                        loadVouchers()
+                        showToast('✅ Voucher dihapus', 'success')
+                      }
+                    }}
+                    className="btn btn-danger btn-sm"
+                    style={{ width: 'auto', minHeight: '30px', padding: '4px 12px', fontSize: '12px' }}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create Voucher Modal */}
+      {showVoucherModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999,
+          padding: '16px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '100%'
+          }}>
+            <h3 style={{ marginBottom: '12px' }}>🎫 Create Voucher</h3>
+            <div className="form-group">
+              <label className="form-label">Kode Voucher</label>
+              <input
+                type="text"
+                value={newVoucherCode}
+                onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
+                placeholder="e.g., TEAM2026"
+                className="form-input"
+                style={{ textTransform: 'uppercase' }}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Deskripsi (opsional)</label>
+              <input
+                type="text"
+                value={newVoucherDesc}
+                onChange={(e) => setNewVoucherDesc(e.target.value)}
+                placeholder="e.g., Team Free Use"
+                className="form-input"
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setShowVoucherModal(false)} className="btn btn-outline" style={{ flex: 1 }}>
+                Batal
+              </button>
+              <button onClick={handleCreateVoucher} className="btn btn-primary" style={{ flex: 1 }}>
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active Master PINs */}
       <div className="card">
         <div className="card-header">
@@ -418,26 +622,84 @@ export default function Admin({ user }) {
         {bookings.length === 0 ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
         ) : (
-          bookings.slice(0, 20).map(b => (
-            <div key={b.id} className="booking-item">
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px' }}>
-                  {b.profiles?.display_name || b.profiles?.full_name || 'Unknown'}
-                  <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Pending Bookings (Manual Payment) */}
+            {bookings.filter(b => b.status === 'pending' && b.payment_status === 'pending').length > 0 && (
+              <>
+                <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--warning)', marginTop: '8px' }}>
+                  ⏳ Menunggu Konfirmasi Pembayaran
+                </h4>
+                {bookings.filter(b => b.status === 'pending' && b.payment_status === 'pending').map(b => (
+                  <div key={b.id} className="booking-item" style={{ background: '#FEF3C7', borderRadius: '8px', padding: '12px 16px' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                        {b.profiles?.display_name || b.profiles?.full_name || 'Unknown'}
+                        <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+                        {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                      </div>
+                      <div style={{ marginTop: '4px' }}>
+                        {getStatusBadge(b.status)}
+                        {getPaymentBadge(b.payment_status || 'pending')}
+                        <span style={{ marginLeft: '8px', fontWeight: 600, color: 'var(--primary)' }}>
+                          Rp {b.price?.toLocaleString() || 0}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button 
+                        onClick={() => handleConfirmPayment(b.id)}
+                        className="btn btn-success btn-sm"
+                        style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+                      >
+                        ✅ Confirm Payment
+                      </button>
+                      <button 
+                        onClick={() => handleCancelBooking(b.id)}
+                        className="btn btn-danger btn-sm"
+                        style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+                      >
+                        ❌ Cancel
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* All Other Bookings */}
+            <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-500)', marginTop: '8px' }}>
+              📋 Semua Pesanan
+            </h4>
+            {bookings.filter(b => !(b.status === 'pending' && b.payment_status === 'pending')).slice(0, 20).map(b => (
+              <div key={b.id} className="booking-item">
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                    {b.profiles?.display_name || b.profiles?.full_name || 'Unknown'}
+                    <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+                    {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                  </div>
+                  <div style={{ marginTop: '4px' }}>
+                    {getStatusBadge(b.status)}
+                    {getPaymentBadge(b.payment_status || 'free')}
+                    {b.voucher_id && (
+                      <span className="badge" style={{ marginLeft: '4px', background: '#E0E7FF', color: '#3730A3' }}>
+                        🎫 Voucher
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
-                  {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                </div>
-                <div style={{ marginTop: '4px' }}>
-                  {getStatusBadge(b.status)}
-                  {getPaymentBadge(b.payment_status || 'free')}
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>
+                    {b.pin || '-'}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin || '-'}</div>
-              </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
         {bookings.length > 20 && (
           <p style={{ textAlign: 'center', fontSize: '14px', color: 'var(--gray-400)', marginTop: '12px' }}>
