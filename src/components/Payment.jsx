@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { supabase, confirmPayment, cancelPendingBooking, getPendingBooking } from '../lib/supabase'
+import { supabase, getPendingBooking } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Payment({ user }) {
   const navigate = useNavigate()
   const location = useLocation()
   const showToast = useToast()
-  const [loading, setLoading] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(600)
   const [booking, setBooking] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const { bookingId, date, slot, duration, price } = location.state || {}
+
+  // ✅ Replace with your admin WhatsApp number (without +)
+  const ADMIN_PHONE = '6281998889199'
+  const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
 
   useEffect(() => {
     const findOrCheckBooking = async () => {
@@ -22,9 +24,6 @@ export default function Payment({ user }) {
         const { data } = await getPendingBooking(bookingId)
         if (data && data.status === 'pending') {
           setBooking(data)
-          const deadline = new Date(data.payment_deadline)
-          const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
-          setTimeLeft(remaining)
           setIsLoading(false)
           return
         }
@@ -41,9 +40,6 @@ export default function Payment({ user }) {
       if (pendingList && pendingList.length > 0) {
         const pending = pendingList[0]
         setBooking(pending)
-        const deadline = new Date(pending.payment_deadline)
-        const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
-        setTimeLeft(remaining)
         setIsLoading(false)
         return
       }
@@ -53,34 +49,6 @@ export default function Payment({ user }) {
 
     findOrCheckBooking()
   }, [bookingId, user.id, navigate])
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      const handleTimeout = async () => {
-        if (booking?.id) {
-          await cancelPendingBooking(booking.id)
-        }
-        showToast('⏰ Waktu pembayaran habis', 'warning')
-        navigate('/payment-failed', {
-          state: { 
-            bookingId: booking?.id, 
-            reason: 'Waktu pembayaran habis. Silakan coba lagi.',
-            retry: true
-          }
-        })
-      }
-      if (booking) {
-        handleTimeout()
-      }
-      return
-    }
-
-    const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1)
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [timeLeft, booking, navigate, showToast])
 
   const startTime = booking ? new Date(booking.start_time) : new Date(slot?.startTime)
   const endTime = booking ? new Date(booking.end_time) : new Date(slot?.endTime)
@@ -107,57 +75,35 @@ export default function Payment({ user }) {
     })
   }
 
-  function formatTimeLeft(seconds) {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+  async function handleCancelBooking() {
+    if (!booking) return
+    if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
 
-  async function handlePayment() {
-    if (!booking) {
-      showToast('❌ Booking tidak ditemukan', 'error')
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', booking.id)
+
+    if (error) {
+      showToast('❌ Gagal membatalkan: ' + error.message, 'error')
       return
     }
+    showToast('✅ Pesanan dibatalkan', 'success')
+    navigate('/booking')
+  }
 
-    setLoading(true)
+  function getWhatsAppMessage() {
+    if (!booking) return ''
+    const message = `Halo Admin, saya sudah melakukan pembayaran untuk booking:
 
-    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000))
+📅 Tanggal: ${formatDateDisplay(dateStr)}
+⏰ Waktu: ${formatTime(startTime)} - ${formatTime(endTime)}
+⏱️ Durasi: ${durationHours} jam
+💰 Total: Rp ${priceTotal.toLocaleString()}
+👤 Nama: ${user?.email || 'Customer'}
 
-    const isSuccess = Math.random() < 0.8
-
-    if (isSuccess) {
-      const { data, error } = await confirmPayment(booking.id)
-
-      if (error) {
-        showToast('❌ Gagal memproses pembayaran: ' + error.message, 'error')
-        setLoading(false)
-        return
-      }
-
-      navigate('/payment-success', {
-        state: { booking: data }
-      })
-    } else {
-      const reasons = [
-        'Saldo Anda tidak mencukupi untuk transaksi ini',
-        'Koneksi internet terputus, silakan coba lagi',
-        'Transaksi ditolak oleh bank penerbit',
-        'Melebihi batas transaksi harian'
-      ]
-      const randomReason = reasons[Math.floor(Math.random() * reasons.length)]
-
-      await cancelPendingBooking(booking.id)
-
-      navigate('/payment-failed', {
-        state: {
-          bookingId: booking.id,
-          reason: randomReason,
-          retry: true
-        }
-      })
-    }
-
-    setLoading(false)
+Mohon dikonfirmasi. Terima kasih.`
+    return encodeURIComponent(message)
   }
 
   if (isLoading) {
@@ -183,14 +129,9 @@ export default function Payment({ user }) {
       </div>
 
       <div className="card" style={{ marginTop: '16px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>💳 Pembayaran</h2>
+        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>💳 Informasi Pembayaran</h2>
 
-        <div style={{ textAlign: 'center', marginBottom: '16px', padding: '12px', background: timeLeft < 60 ? '#FEE2E2' : '#FEF3C7', borderRadius: '8px' }}>
-          <span style={{ fontSize: '14px', color: timeLeft < 60 ? '#991B1B' : '#92400E' }}>
-            ⏰ Waktu tersisa: <strong>{formatTimeLeft(timeLeft)}</strong>
-          </span>
-        </div>
-
+        {/* Order Summary */}
         <div style={{ background: 'var(--primary-bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>📅 Tanggal</span>
@@ -212,34 +153,71 @@ export default function Payment({ user }) {
           </div>
         </div>
 
+        {/* QRIS */}
         <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontWeight: 600, marginBottom: '8px' }}>💳 Metode Pembayaran</p>
-          <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px' }}>
-            <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
-              💳 Kartu Kredit / Debit
-            </span>
-          </div>
-          <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px', marginTop: '8px' }}>
-            <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
-              🏦 Transfer Bank (Virtual Account)
-            </span>
-          </div>
-          <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px', marginTop: '8px' }}>
-            <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
-              📱 QRIS
-            </span>
+          <h4 style={{ fontWeight: 600, marginBottom: '12px' }}>📱 Bayar dengan QRIS</h4>
+          
+          <div style={{ padding: '16px', background: '#F0FDF4', borderRadius: '8px', border: '1px solid #86EFAC', textAlign: 'center' }}>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: '#065F46', marginBottom: '8px' }}>Scan QRIS di bawah ini</p>
+            <img 
+              src="/qris.png" 
+              alt="QRIS" 
+              style={{ 
+                maxWidth: '200px', 
+                width: '100%', 
+                height: 'auto',
+                margin: '0 auto',
+                display: 'block',
+                borderRadius: '8px'
+              }} 
+            />
+            <p style={{ fontSize: '12px', color: '#065F46', marginTop: '8px' }}>
+              Total: <strong>Rp {priceTotal.toLocaleString()}</strong>
+            </p>
           </div>
         </div>
 
-        <div style={{ background: '#FEF3C7', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
-          <p style={{ fontSize: '14px', color: '#92400E' }}>
-            ⚠️ Mode Uji Coba — Tidak ada uang yang benar-benar ditransfer.
-            {timeLeft < 60 && <span style={{ display: 'block', marginTop: '4px', fontWeight: 'bold' }}>⏰ Segera selesaikan pembayaran!</span>}
+        {/* WhatsApp Confirmation */}
+        <div style={{ background: '#EFF6FF', padding: '16px', borderRadius: '8px', border: '1px solid #93C5FD', marginBottom: '16px' }}>
+          <p style={{ fontSize: '14px', color: '#1E40AF', fontWeight: 600, marginBottom: '8px' }}>
+            ✅ Setelah membayar, konfirmasi ke admin
+          </p>
+          <a 
+            href={`${WHATSAPP_LINK}?text=${getWhatsAppMessage()}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-success"
+            style={{ 
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              textDecoration: 'none'
+            }}
+          >
+            💬 Konfirmasi via WhatsApp
+          </a>
+          <p style={{ fontSize: '12px', color: '#1E40AF', marginTop: '8px', textAlign: 'center' }}>
+            Booking akan aktif setelah admin mengkonfirmasi pembayaran.
           </p>
         </div>
 
-        <button onClick={handlePayment} className="btn btn-primary" disabled={loading || timeLeft <= 0 || !booking}>
-          {loading ? '⏳ Memproses...' : timeLeft <= 0 ? '⏰ Waktu Habis' : '💳 Bayar Sekarang'}
+        <button 
+          onClick={handleCancelBooking} 
+          className="btn btn-danger"
+          disabled={!booking}
+          style={{ marginTop: '8px' }}
+        >
+          ❌ Batalkan Pesanan
+        </button>
+
+        <button 
+          onClick={() => navigate('/dashboard')} 
+          className="btn btn-outline"
+          style={{ marginTop: '8px' }}
+        >
+          📋 Lihat Pesanan Saya
         </button>
       </div>
     </div>
