@@ -9,16 +9,24 @@ export default function Payment({ user }) {
   const showToast = useToast()
   const [booking, setBooking] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [profile, setProfile] = useState(null)
 
   const { bookingId, date, slot, duration, price } = location.state || {}
 
   // ✅ Replace with your admin WhatsApp number (without +)
-  const ADMIN_PHONE = '6281998889199'
-  const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
+  const WHATSAPP_LINK = 'https://chat.whatsapp.com/EwtdbgPPRxL2wpWcTwnhXx'
 
   useEffect(() => {
     const findOrCheckBooking = async () => {
       setIsLoading(true)
+      
+      // Get user profile first
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_name, full_name, block, house_number')
+        .eq('id', user.id)
+        .single()
+      setProfile(profileData)
       
       if (bookingId) {
         const { data } = await getPendingBooking(bookingId)
@@ -94,15 +102,26 @@ export default function Payment({ user }) {
 
   function getWhatsAppMessage() {
     if (!booking) return ''
-    const message = `Halo Admin, saya sudah melakukan pembayaran untuk booking:
 
-📅 Tanggal: ${formatDateDisplay(dateStr)}
-⏰ Waktu: ${formatTime(startTime)} - ${formatTime(endTime)}
-⏱️ Durasi: ${durationHours} jam
-💰 Total: Rp ${priceTotal.toLocaleString()}
-👤 Nama: ${user?.email || 'Customer'}
+    // Build customer name with block and house number
+    const customerName = profile
+      ? `${profile.display_name || profile.full_name || 'Customer'} — Blok ${profile.block || '-'} No. ${profile.house_number || '-'}`
+      : user?.email || 'Customer'
 
-Mohon dikonfirmasi. Terima kasih.`
+    const message = `Halo Admin,
+
+Saya sudah melakukan pembayaran untuk booking berikut:
+
+📅 *Tanggal:* ${formatDateDisplay(dateStr)}
+⏰ *Waktu:* ${formatTime(startTime)} - ${formatTime(endTime)}
+⏱️ *Durasi:* ${durationHours} jam
+💰 *Total:* Rp ${priceTotal.toLocaleString()}
+👤 *Customer:* ${customerName}
+
+Bukti pembayaran saya lampirkan di bawah ini, mohon segera dikonfirmasi.
+
+Terima kasih. 🙏`
+
     return encodeURIComponent(message)
   }
 
@@ -131,7 +150,6 @@ Mohon dikonfirmasi. Terima kasih.`
       <div className="card" style={{ marginTop: '16px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>💳 Informasi Pembayaran</h2>
 
-        {/* Order Summary */}
         <div style={{ background: 'var(--primary-bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>📅 Tanggal</span>
@@ -153,7 +171,6 @@ Mohon dikonfirmasi. Terima kasih.`
           </div>
         </div>
 
-        {/* QRIS */}
         <div style={{ marginBottom: '16px' }}>
           <h4 style={{ fontWeight: 600, marginBottom: '12px' }}>📱 Bayar dengan QRIS</h4>
           
@@ -177,7 +194,6 @@ Mohon dikonfirmasi. Terima kasih.`
           </div>
         </div>
 
-        {/* WhatsApp Confirmation */}
         <div style={{ background: '#EFF6FF', padding: '16px', borderRadius: '8px', border: '1px solid #93C5FD', marginBottom: '16px' }}>
           <p style={{ fontSize: '14px', color: '#1E40AF', fontWeight: 600, marginBottom: '8px' }}>
             ✅ Setelah membayar, konfirmasi ke admin
