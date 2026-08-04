@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { confirmPayment, cancelPendingBooking, getPendingBooking } from '../lib/supabase'
+import { supabase, confirmPayment, cancelPendingBooking, getPendingBooking } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Payment({ user }) {
@@ -10,17 +10,14 @@ export default function Payment({ user }) {
   const [loading, setLoading] = useState(false)
   const [timeLeft, setTimeLeft] = useState(600)
   const [booking, setBooking] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   const { bookingId, date, slot, duration, price } = location.state || {}
-
-  // If no bookingId, try to find pending booking from database
-  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const findOrCheckBooking = async () => {
       setIsLoading(true)
       
-      // If bookingId is provided, use it
       if (bookingId) {
         const { data } = await getPendingBooking(bookingId)
         if (data && data.status === 'pending') {
@@ -33,7 +30,6 @@ export default function Payment({ user }) {
         }
       }
       
-      // If no bookingId, or booking is not pending, find any pending booking for this user
       const { data: pendingList } = await supabase
         .from('bookings')
         .select('*')
@@ -48,22 +44,16 @@ export default function Payment({ user }) {
         const deadline = new Date(pending.payment_deadline)
         const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
         setTimeLeft(remaining)
-        
-        // Update location state with the found booking
-        // so it can be used by the rest of the component
-        // (We'll handle this below)
         setIsLoading(false)
         return
       }
 
-      // No pending booking found
       navigate('/booking')
     }
 
     findOrCheckBooking()
   }, [bookingId, user.id, navigate])
 
-  // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
       const handleTimeout = async () => {
@@ -92,12 +82,11 @@ export default function Payment({ user }) {
     return () => clearInterval(timer)
   }, [timeLeft, booking, navigate, showToast])
 
-  // Use booking data if available, otherwise use location state
   const startTime = booking ? new Date(booking.start_time) : new Date(slot?.startTime)
   const endTime = booking ? new Date(booking.end_time) : new Date(slot?.endTime)
   const dateStr = booking ? booking.start_time.split('T')[0] : date
   const durationHours = booking ? booking.duration_hours : duration
-  const priceTotal = booking ? booking.duration_hours * 30000 : price
+  const priceTotal = booking ? booking.price : price
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
@@ -217,11 +206,8 @@ export default function Payment({ user }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
             <span style={{ color: 'var(--gray-600)' }}>💰 Total</span>
-            <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-              <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', marginRight: '8px' }}>
-                Rp {priceTotal.toLocaleString()}
-              </span>
-              Rp 0 (Gratis)
+            <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '18px' }}>
+              Rp {priceTotal.toLocaleString()}
             </span>
           </div>
         </div>
@@ -230,7 +216,17 @@ export default function Payment({ user }) {
           <p style={{ fontWeight: 600, marginBottom: '8px' }}>💳 Metode Pembayaran</p>
           <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px' }}>
             <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
-              ✅ Gratis (Mode Uji Coba)
+              💳 Kartu Kredit / Debit
+            </span>
+          </div>
+          <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px', marginTop: '8px' }}>
+            <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
+              🏦 Transfer Bank (Virtual Account)
+            </span>
+          </div>
+          <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px', marginTop: '8px' }}>
+            <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
+              📱 QRIS
             </span>
           </div>
         </div>
