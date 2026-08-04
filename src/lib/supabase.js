@@ -147,24 +147,21 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
-  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
-  if (pinError) return { error: pinError }
-
   const price = calculatePrice(duration)
 
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
-      pin: pinData,
+      pin: null,
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       duration_hours: duration,
       price: price,
       original_price: price,
       discount_applied: 0,
-      payment_status: 'free',
-      payment_method: 'free',
+      payment_status: 'pending',
+      payment_method: 'pending',
       status: 'pending'
     })
     .select()
@@ -229,8 +226,6 @@ export async function createPendingBooking(userId, slotData, duration, price) {
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
-  const paymentDeadline = new Date(Date.now() + 10 * 60 * 1000)
-
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -244,8 +239,7 @@ export async function createPendingBooking(userId, slotData, duration, price) {
       discount_applied: 0,
       payment_status: 'pending',
       payment_method: 'pending',
-      status: 'pending',
-      payment_deadline: paymentDeadline.toISOString()
+      status: 'pending'
     })
     .select()
     .single()
@@ -262,7 +256,8 @@ export async function confirmPayment(bookingId) {
     .update({
       status: 'active',
       pin: pinData,
-      payment_status: 'paid'
+      payment_status: 'paid',
+      admin_confirmed_at: new Date().toISOString()
     })
     .eq('id', bookingId)
     .eq('status', 'pending')
@@ -298,23 +293,6 @@ export async function cancelPendingBooking(bookingId) {
     .eq('status', 'pending')
     .select()
     .single()
-  return { data, error }
-}
-
-export async function cancelExpiredPendingBookings() {
-  const now = new Date().toISOString()
-  
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({ status: 'cancelled', payment_status: 'expired' })
-    .eq('status', 'pending')
-    .lt('payment_deadline', now)
-    .select()
-
-  if (data && data.length > 0) {
-    console.log(`⏰ ${data.length} expired pending bookings cancelled`)
-  }
-
   return { data, error }
 }
 
@@ -368,7 +346,7 @@ export function calculateDiscount(originalPrice, voucher) {
   if (!voucher) return 0
 
   if (voucher.discount_type === 'free') {
-    return originalPrice
+    return originalPrice - 1  // Free voucher = Rp 1 final price
   }
 
   if (voucher.discount_type === 'percentage') {
@@ -426,23 +404,24 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
   const discount = calculateDiscount(originalPrice, voucher)
   const finalPrice = originalPrice - discount
 
-  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
-  if (pinError) return { error: pinError }
+  // ✅ Always pending (no auto-activation)
+  // ✅ Free voucher = Rp 1 (not 0)
+  const finalPriceWithMin = voucher.discount_type === 'free' ? 1 : finalPrice
 
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
-      pin: pinData,
+      pin: null,
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       duration_hours: duration,
       original_price: originalPrice,
-      price: finalPrice,
-      discount_applied: discount,
-      payment_status: 'free',
+      price: finalPriceWithMin,
+      discount_applied: originalPrice - finalPriceWithMin,
+      payment_status: 'pending',
       payment_method: 'voucher',
-      status: 'active',
+      status: 'pending',
       voucher_id: voucherId
     })
     .select()
@@ -450,11 +429,13 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
 
   if (error) return { error }
 
+  // Update voucher usage count
   await supabase
     .from('vouchers')
-    .update({ used_count: data.used_count + 1 })
+    .update({ used_count: voucher.used_count + 1 })
     .eq('id', voucherId)
 
+  // Track usage
   await supabase
     .from('voucher_usage')
     .insert({
@@ -462,22 +443,6 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
       user_id: userId,
       booking_id: data.id
     })
-
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (profile) {
-      const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
-      await fetch(EDGE_FUNCTION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ booking: data, profile, type: 'booking' })
-      })
-    }
-  } catch (err) { /* silent fail */ }
 
   return { data, error }
 }
