@@ -226,9 +226,12 @@ export default function Dashboard({ user, profile }) {
                   <div className="booking-time">{formatTime(b.start_time)} - {formatTime(b.end_time)}</div>
                   <div style={{ marginTop: '4px' }}>
                     {getStatusBadge(b.status)}
-                    {b.payment_status === 'free' && (
-                      <span className="badge" style={{ marginLeft: '4px', background: '#FEF3C7', color: '#92400E' }}>🆓 Gratis</span>
-                    )}
+                    {b.payment_status === 'paid' && (
+  <span className="badge" style={{ marginLeft: '4px', background: '#D1FAE5', color: '#065F46' }}>💰 Dibayar</span>
+)}
+{b.payment_status === 'pending' && (
+  <span className="badge" style={{ marginLeft: '4px', background: '#FEF3C7', color: '#92400E' }}>⏳ Menunggu Pembayaran</span>
+)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
