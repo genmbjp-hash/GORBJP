@@ -226,6 +226,8 @@ export async function createPendingBooking(userId, slotData, duration, price) {
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
+  // ✅ REMOVED: payment_deadline
+
   const { data, error } = await supabase
     .from('bookings')
     .insert({
