@@ -1,10 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-// ============================================
-// SUPABASE CREDENTIALS
-// ============================================
-const SUPABASE_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoYm1mZ3prYnh4ZG1rbmhhc2VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0Nzk3NDUsImV4cCI6MjEwMTA1NTc0NX0.n1cgSLaAEqUG3nF57yYepNeTx6VNd9OlT7BmODR4-JE'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
@@ -30,7 +27,7 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
   if (!error && data.user) {
     try {
       const profile = { display_name: displayName, full_name: fullName, email, phone, block, house_number }
-      const EDGE_FUNCTION_URL = 'https://your-project.supabase.co/functions/v1/send-telegram'
+      const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
       await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -61,10 +58,10 @@ export async function getProfile(userId) {
 // BOOKINGS
 // ============================================
 
-export async function getBookingsForDate(date) {
-  const startDate = new Date(date)
+export async function getBookingsForDate(dateObj) {
+  const startDate = new Date(dateObj)
   startDate.setHours(0, 0, 0, 0)
-  const endDate = new Date(date)
+  const endDate = new Date(dateObj)
   endDate.setHours(23, 59, 59, 999)
 
   const { data, error } = await supabase
@@ -94,22 +91,36 @@ export async function getUserBookings(userId) {
   return { data, error }
 }
 
+export async function completeExpiredBookings() {
+  const now = new Date().toISOString()
+  
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'completed' })
+    .in('status', ['pending', 'active'])
+    .lt('end_time', now)
+    .select()
+
+  if (data && data.length > 0) {
+    console.log(`✅ ${data.length} expired bookings completed`)
+  }
+
+  return { data, error }
+}
+
 export async function createBookingWithCheckout(userId, slotData, duration) {
   const { date, hour } = slotData
 
-  // Parse the date correctly
   const startDateTime = new Date(date)
   startDateTime.setHours(hour, 0, 0, 0)
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // ✅ Date range for the selected day (start of day to end of day)
   const startOfDay = new Date(date)
   startOfDay.setHours(0, 0, 0, 0)
   const endOfDay = new Date(date)
   endOfDay.setHours(23, 59, 59, 999)
 
-  // ✅ Check for overlapping bookings ONLY on the same date
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
@@ -119,21 +130,14 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .filter('start_time', 'lt', endDateTime.toISOString())
     .filter('end_time', 'gt', startDateTime.toISOString())
 
-  if (checkError) {
-    console.error('❌ Check error:', checkError)
-    return { error: checkError }
-  }
-  
+  if (checkError) return { error: checkError }
   if (existing.length > 0) {
-    console.log('⚠️ Overlap detected:', existing)
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
-  // Generate PIN
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
 
-  // Create booking
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -152,29 +156,16 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
 
   if (!error) {
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single()
       if (profile) {
-        const EDGE_FUNCTION_URL = 'https://ehbmfgzkbxxdmknhasea.supabase.co/functions/v1/send-telegram'
+        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
         await fetch(EDGE_FUNCTION_URL, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({
-            booking: data,
-            profile: profile,
-            type: 'booking'
-          })
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ booking: data, profile, type: 'booking' })
         })
       }
-    } catch (err) {
-      // Silent fail — Telegram notification is not critical
-    }
+    } catch (err) { /* silent fail */ }
   }
 
   return { data, error }
