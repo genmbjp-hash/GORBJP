@@ -15,6 +15,7 @@ import {
   completeExpiredBookings,
   createVoucher,
   getVouchers,
+  updateVoucher,
   deactivateVoucher,
   deleteVoucher,
   supabase
@@ -32,12 +33,21 @@ export default function Admin({ user }) {
   const [loading, setLoading] = useState(true)
   const [masterPinResult, setMasterPinResult] = useState(null)
   const [newBookingsCount, setNewBookingsCount] = useState(0)
-  
+
   // Voucher state
   const [vouchers, setVouchers] = useState([])
-  const [newVoucherCode, setNewVoucherCode] = useState('')
-  const [newVoucherDesc, setNewVoucherDesc] = useState('')
   const [showVoucherModal, setShowVoucherModal] = useState(false)
+  const [editingVoucher, setEditingVoucher] = useState(null)
+  const [voucherForm, setVoucherForm] = useState({
+    code: '',
+    description: '',
+    discount_type: 'percentage',
+    discount_value: '',
+    max_uses: '',
+    expires_at: '',
+    min_duration: 1,
+    max_duration: ''
+  })
 
   const navigate = useNavigate()
   const showToast = useToast()
@@ -109,22 +119,112 @@ export default function Admin({ user }) {
     setVouchers(data || [])
   }
 
-  async function handleCreateVoucher() {
-    if (!newVoucherCode.trim()) {
+  // ============================================
+  // VOUCHER FUNCTIONS
+  // ============================================
+
+  function openCreateVoucher() {
+    setEditingVoucher(null)
+    setVoucherForm({
+      code: '',
+      description: '',
+      discount_type: 'percentage',
+      discount_value: '',
+      max_uses: '',
+      expires_at: '',
+      min_duration: 1,
+      max_duration: ''
+    })
+    setShowVoucherModal(true)
+  }
+
+  function openEditVoucher(voucher) {
+    setEditingVoucher(voucher)
+    setVoucherForm({
+      code: voucher.code,
+      description: voucher.description || '',
+      discount_type: voucher.discount_type,
+      discount_value: voucher.discount_value || '',
+      max_uses: voucher.max_uses || '',
+      expires_at: voucher.expires_at ? voucher.expires_at.split('T')[0] : '',
+      min_duration: voucher.min_duration || 1,
+      max_duration: voucher.max_duration || ''
+    })
+    setShowVoucherModal(true)
+  }
+
+  async function handleSaveVoucher() {
+    const { code, description, discount_type, discount_value, max_uses, expires_at, min_duration, max_duration } = voucherForm
+
+    if (!code.trim()) {
       showToast('❌ Masukkan kode voucher', 'error')
       return
     }
-    const { error } = await createVoucher(newVoucherCode, newVoucherDesc, user.id)
-    if (error) {
-      showToast('❌ ' + error.message, 'error')
+
+    if (!discount_type) {
+      showToast('❌ Pilih tipe diskon', 'error')
       return
     }
-    showToast('✅ Voucher created: ' + newVoucherCode, 'success')
-    setNewVoucherCode('')
-    setNewVoucherDesc('')
+
+    if (discount_type !== 'free' && !discount_value) {
+      showToast('❌ Masukkan nilai diskon', 'error')
+      return
+    }
+
+    if (discount_type === 'percentage' && (discount_value < 1 || discount_value > 100)) {
+      showToast('❌ Persentase diskon harus 1-100', 'error')
+      return
+    }
+
+    if (editingVoucher) {
+      const { error } = await updateVoucher(editingVoucher.id, {
+        code: code.toUpperCase(),
+        description: description || null,
+        discount_type,
+        discount_value: discount_type === 'free' ? 0 : parseInt(discount_value),
+        max_uses: max_uses ? parseInt(max_uses) : 0,
+        expires_at: expires_at || null,
+        min_duration: parseInt(min_duration) || 1,
+        max_duration: max_duration ? parseInt(max_duration) : null
+      })
+      if (error) {
+        showToast('❌ ' + error.message, 'error')
+        return
+      }
+      showToast('✅ Voucher updated: ' + code, 'success')
+    } else {
+      const { error } = await createVoucher(
+        code,
+        description,
+        discount_type,
+        discount_type === 'free' ? 0 : parseInt(discount_value),
+        max_uses ? parseInt(max_uses) : 0,
+        expires_at || null,
+        parseInt(min_duration) || 1,
+        max_duration ? parseInt(max_duration) : null,
+        user.id
+      )
+      if (error) {
+        showToast('❌ ' + error.message, 'error')
+        return
+      }
+      showToast('✅ Voucher created: ' + code, 'success')
+    }
+
     setShowVoucherModal(false)
     loadVouchers()
   }
+
+  function getDiscountLabel(voucher) {
+    if (voucher.discount_type === 'free') return 'Gratis (100%)'
+    if (voucher.discount_type === 'percentage') return `${voucher.discount_value}%`
+    if (voucher.discount_type === 'fixed') return `Rp ${voucher.discount_value.toLocaleString()}`
+    return '-'
+  }
+
+  // ============================================
+  // USER FUNCTIONS
+  // ============================================
 
   async function handleApprove(userId) {
     if (!confirm('Setujui user ini?')) return
@@ -149,6 +249,10 @@ export default function Admin({ user }) {
     loadPendingUsers()
     loadAllBookings()
   }
+
+  // ============================================
+  // MASTER PIN FUNCTIONS
+  // ============================================
 
   async function handleGenerateMaster() {
     const duration = masterDuration || 8
@@ -177,6 +281,10 @@ export default function Admin({ user }) {
     loadMasterPins()
   }
 
+  // ============================================
+  // DEVICE FUNCTIONS
+  // ============================================
+
   async function handleForceOn() {
     const { error } = await forceLampOn(user.id)
     if (error) {
@@ -197,15 +305,13 @@ export default function Admin({ user }) {
     loadDeviceStatus()
   }
 
-  async function handleLogout() {
-    await signOut()
-    navigate('/login')
-  }
+  // ============================================
+  // PAYMENT FUNCTIONS
+  // ============================================
 
   async function handleConfirmPayment(bookingId) {
     if (!confirm('Konfirmasi pembayaran untuk booking ini?')) return
     
-    // Generate PIN
     const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
     if (pinError) {
       showToast('❌ Gagal generate PIN: ' + pinError.message, 'error')
@@ -245,6 +351,19 @@ export default function Admin({ user }) {
       loadAllBookings()
     }
   }
+
+  // ============================================
+  // LOGOUT
+  // ============================================
+
+  async function handleLogout() {
+    await signOut()
+    navigate('/login')
+  }
+
+  // ============================================
+  // FORMATTERS
+  // ============================================
 
   function formatDate(dateStr) {
     const d = new Date(dateStr)
@@ -444,7 +563,7 @@ export default function Admin({ user }) {
         <div className="card-header">
           <span className="card-title">🎫 Voucher Management</span>
           <button 
-            onClick={() => setShowVoucherModal(true)} 
+            onClick={openCreateVoucher} 
             className="btn btn-primary btn-sm"
             style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}
           >
@@ -463,7 +582,14 @@ export default function Admin({ user }) {
                     {v.code}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-                    {v.description || 'Tidak ada deskripsi'} • Dibuat: {new Date(v.created_at).toLocaleDateString('id-ID')}
+                    {v.description || 'Tidak ada deskripsi'}
+                    {' • '}
+                    <strong>{getDiscountLabel(v)}</strong>
+                    {' • '}
+                    Digunakan: {v.used_count || 0}/{v.max_uses === 0 ? '∞' : v.max_uses}
+                    {v.min_duration > 1 && ` • Min ${v.min_duration} jam`}
+                    {v.max_duration && ` • Max ${v.max_duration} jam`}
+                    {v.expires_at && ` • Exp: ${new Date(v.expires_at).toLocaleDateString('id-ID')}`}
                   </div>
                   <div style={{ marginTop: '4px' }}>
                     <span className={`badge ${v.active ? 'badge-active' : 'badge-cancelled'}`}>
@@ -471,7 +597,14 @@ export default function Admin({ user }) {
                     </span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={() => openEditVoucher(v)}
+                    className="btn btn-primary btn-sm"
+                    style={{ width: 'auto', minHeight: '30px', padding: '4px 12px', fontSize: '12px' }}
+                  >
+                    ✏️ Edit
+                  </button>
                   {v.active && (
                     <button 
                       onClick={async () => {
@@ -485,6 +618,21 @@ export default function Admin({ user }) {
                       style={{ width: 'auto', minHeight: '30px', padding: '4px 12px', fontSize: '12px' }}
                     >
                       Nonaktifkan
+                    </button>
+                  )}
+                  {!v.active && (
+                    <button 
+                      onClick={async () => {
+                        if (confirm('Aktifkan voucher ini?')) {
+                          await updateVoucher(v.id, { active: true })
+                          loadVouchers()
+                          showToast('✅ Voucher diaktifkan', 'success')
+                        }
+                      }}
+                      className="btn btn-success btn-sm"
+                      style={{ width: 'auto', minHeight: '30px', padding: '4px 12px', fontSize: '12px' }}
+                    >
+                      Aktifkan
                     </button>
                   )}
                   <button 
@@ -507,7 +655,7 @@ export default function Admin({ user }) {
         )}
       </div>
 
-      {/* Create Voucher Modal */}
+      {/* Create/Edit Voucher Modal */}
       {showVoucherModal && (
         <div style={{
           position: 'fixed',
@@ -520,43 +668,132 @@ export default function Admin({ user }) {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 999,
-          padding: '16px'
+          padding: '16px',
+          overflow: 'auto'
         }}>
           <div style={{
             background: 'white',
             borderRadius: '12px',
             padding: '24px',
-            maxWidth: '400px',
-            width: '100%'
+            maxWidth: '500px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto'
           }}>
-            <h3 style={{ marginBottom: '12px' }}>🎫 Create Voucher</h3>
+            <h3 style={{ marginBottom: '16px' }}>
+              {editingVoucher ? '✏️ Edit Voucher' : '🎫 Create Voucher'}
+            </h3>
+            
             <div className="form-group">
-              <label className="form-label">Kode Voucher</label>
+              <label className="form-label">Kode Voucher *</label>
               <input
                 type="text"
-                value={newVoucherCode}
-                onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
+                value={voucherForm.code}
+                onChange={(e) => setVoucherForm({ ...voucherForm, code: e.target.value.toUpperCase() })}
                 placeholder="e.g., TEAM2026"
                 className="form-input"
                 style={{ textTransform: 'uppercase' }}
+                disabled={!!editingVoucher}
               />
             </div>
+
             <div className="form-group">
               <label className="form-label">Deskripsi (opsional)</label>
               <input
                 type="text"
-                value={newVoucherDesc}
-                onChange={(e) => setNewVoucherDesc(e.target.value)}
+                value={voucherForm.description}
+                onChange={(e) => setVoucherForm({ ...voucherForm, description: e.target.value })}
                 placeholder="e.g., Team Free Use"
                 className="form-input"
               />
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+
+            <div className="form-group">
+              <label className="form-label">Tipe Diskon *</label>
+              <select
+                value={voucherForm.discount_type}
+                onChange={(e) => {
+                  setVoucherForm({ 
+                    ...voucherForm, 
+                    discount_type: e.target.value,
+                    discount_value: e.target.value === 'free' ? '' : voucherForm.discount_value
+                  })
+                }}
+                className="form-input"
+              >
+                <option value="percentage">Percentage (%)</option>
+                <option value="fixed">Fixed Amount (Rp)</option>
+                <option value="free">Free (100%)</option>
+              </select>
+            </div>
+
+            {voucherForm.discount_type !== 'free' && (
+              <div className="form-group">
+                <label className="form-label">
+                  {voucherForm.discount_type === 'percentage' ? 'Nilai Diskon (%) *' : 'Nilai Diskon (Rp) *'}
+                </label>
+                <input
+                  type="number"
+                  value={voucherForm.discount_value}
+                  onChange={(e) => setVoucherForm({ ...voucherForm, discount_value: e.target.value })}
+                  placeholder={voucherForm.discount_type === 'percentage' ? 'e.g., 50' : 'e.g., 20000'}
+                  className="form-input"
+                  min="1"
+                />
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Batas Penggunaan (0 = unlimited)</label>
+              <input
+                type="number"
+                value={voucherForm.max_uses}
+                onChange={(e) => setVoucherForm({ ...voucherForm, max_uses: e.target.value })}
+                placeholder="0"
+                className="form-input"
+                min="0"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Tanggal Kadaluarsa (opsional)</label>
+              <input
+                type="date"
+                value={voucherForm.expires_at}
+                onChange={(e) => setVoucherForm({ ...voucherForm, expires_at: e.target.value })}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Durasi Minimal (jam)</label>
+              <input
+                type="number"
+                value={voucherForm.min_duration}
+                onChange={(e) => setVoucherForm({ ...voucherForm, min_duration: parseInt(e.target.value) || 1 })}
+                className="form-input"
+                min="1"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Durasi Maksimal (jam) (0 = unlimited)</label>
+              <input
+                type="number"
+                value={voucherForm.max_duration}
+                onChange={(e) => setVoucherForm({ ...voucherForm, max_duration: e.target.value })}
+                placeholder="0"
+                className="form-input"
+                min="0"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
               <button onClick={() => setShowVoucherModal(false)} className="btn btn-outline" style={{ flex: 1 }}>
                 Batal
               </button>
-              <button onClick={handleCreateVoucher} className="btn btn-primary" style={{ flex: 1 }}>
-                Create
+              <button onClick={handleSaveVoucher} className="btn btn-primary" style={{ flex: 1 }}>
+                {editingVoucher ? 'Update' : 'Create'}
               </button>
             </div>
           </div>
