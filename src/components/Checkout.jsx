@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { createPendingBooking, cancelExpiredPendingBookings } from '../lib/supabase'
+import { createPendingBooking, cancelExpiredPendingBookings, validateVoucher, createBookingWithVoucher } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Checkout({ user }) {
@@ -8,6 +8,10 @@ export default function Checkout({ user }) {
   const location = useLocation()
   const showToast = useToast()
   const [loading, setLoading] = useState(false)
+  const [voucherCode, setVoucherCode] = useState('')
+  const [voucherApplied, setVoucherApplied] = useState(null)
+  const [voucherError, setVoucherError] = useState('')
+  const [applyingVoucher, setApplyingVoucher] = useState(false)
 
   const { date, slot, duration, price } = location.state || {}
 
@@ -18,6 +22,7 @@ export default function Checkout({ user }) {
 
   const startTime = new Date(slot.startTime)
   const endTime = new Date(slot.endTime)
+  const finalPrice = voucherApplied ? 0 : price
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
@@ -38,33 +43,81 @@ export default function Checkout({ user }) {
     })
   }
 
+  async function handleApplyVoucher() {
+    if (!voucherCode.trim()) {
+      setVoucherError('Masukkan kode voucher')
+      return
+    }
+
+    setApplyingVoucher(true)
+    setVoucherError('')
+
+    const { data, error } = await validateVoucher(voucherCode)
+
+    if (error || !data) {
+      setVoucherError('Kode voucher tidak valid')
+      setApplyingVoucher(false)
+      return
+    }
+
+    setVoucherApplied(data)
+    showToast('✅ Voucher berhasil diterapkan!', 'success')
+    setApplyingVoucher(false)
+  }
+
   async function handleConfirmBooking() {
     setLoading(true)
 
     await cancelExpiredPendingBookings()
 
-    const { data, error } = await createPendingBooking(
-      user.id,
-      { date: date, hour: slot.hour },
-      duration,
-      price
-    )
+    let result
 
-    if (error) {
-      showToast('❌ ' + error.message, 'error')
-      setLoading(false)
-      return
+    if (voucherApplied) {
+      // Create booking with voucher (free)
+      const { data, error } = await createBookingWithVoucher(
+        user.id,
+        { date: date, hour: slot.hour },
+        duration,
+        voucherApplied.id
+      )
+
+      if (error) {
+        showToast('❌ ' + error.message, 'error')
+        setLoading(false)
+        return
+      }
+
+      // Booking is already active, go directly to success
+      navigate('/payment-success', {
+        state: { booking: data }
+      })
+    } else {
+      // Create pending booking (manual payment)
+      const { data, error } = await createPendingBooking(
+        user.id,
+        { date: date, hour: slot.hour },
+        duration,
+        price
+      )
+
+      if (error) {
+        showToast('❌ ' + error.message, 'error')
+        setLoading(false)
+        return
+      }
+
+      navigate('/payment', {
+        state: {
+          bookingId: data.id,
+          date: date,
+          slot: slot,
+          duration: duration,
+          price: price
+        }
+      })
     }
 
-    navigate('/payment', {
-      state: {
-        bookingId: data.id,
-        date: date,
-        slot: slot,
-        duration: duration,
-        price: price
-      }
-    })
+    setLoading(false)
   }
 
   return (
@@ -102,20 +155,67 @@ export default function Checkout({ user }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
             <span style={{ color: 'var(--gray-600)' }}>💰 Total</span>
-            <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '18px' }}>
-              Rp {price.toLocaleString()}
+            <span style={{ fontWeight: 700, color: voucherApplied ? 'var(--success)' : 'var(--primary)', fontSize: '18px' }}>
+              {voucherApplied ? 'Rp 0 (Gratis)' : `Rp ${finalPrice.toLocaleString()}`}
             </span>
           </div>
         </div>
 
+        {/* Voucher Section */}
+        <div style={{ marginBottom: '16px', padding: '16px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid var(--gray-200)' }}>
+          <p style={{ fontWeight: 600, marginBottom: '8px' }}>🎫 Voucher / Kode Undangan</p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={voucherCode}
+              onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+              placeholder="Masukkan kode voucher"
+              style={{
+                flex: 1,
+                minWidth: '150px',
+                padding: '10px 12px',
+                border: '2px solid var(--gray-200)',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                textTransform: 'uppercase'
+              }}
+              disabled={!!voucherApplied}
+            />
+            <button
+              onClick={handleApplyVoucher}
+              className="btn btn-secondary btn-sm"
+              style={{ width: 'auto', minHeight: '40px', padding: '8px 20px' }}
+              disabled={!!voucherApplied || applyingVoucher}
+            >
+              {applyingVoucher ? '⏳...' : 'Apply'}
+            </button>
+            {voucherApplied && (
+              <button
+                onClick={() => { setVoucherApplied(null); setVoucherCode('') }}
+                className="btn btn-outline btn-sm"
+                style={{ width: 'auto', minHeight: '40px', padding: '8px 16px' }}
+              >
+                ✕ Batal
+              </button>
+            )}
+          </div>
+          {voucherError && <p style={{ color: 'var(--danger)', fontSize: '13px', marginTop: '4px' }}>{voucherError}</p>}
+          {voucherApplied && (
+            <p style={{ color: 'var(--success)', fontSize: '13px', marginTop: '4px' }}>
+              ✅ Voucher "{voucherApplied.code}" diterapkan! Total: Rp 0
+            </p>
+          )}
+        </div>
+
         <div style={{ background: '#FEF3C7', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
           <p style={{ fontSize: '14px', color: '#92400E' }}>
-            ⏰ Slot akan ditahan selama 10 menit untuk menyelesaikan pembayaran.
+            {voucherApplied ? '✅ Booking gratis! Slot akan langsung aktif.' : '⏰ Slot akan ditahan selama 10 menit untuk menyelesaikan pembayaran.'}
           </p>
         </div>
 
         <button onClick={handleConfirmBooking} className="btn btn-primary" disabled={loading}>
-          {loading ? '⏳ Memproses...' : '✅ Konfirmasi Booking'}
+          {loading ? '⏳ Memproses...' : voucherApplied ? '✅ Booking Gratis' : '✅ Konfirmasi Booking'}
         </button>
 
         <button onClick={() => navigate('/booking')} className="btn btn-outline" style={{ marginTop: '8px' }}>
