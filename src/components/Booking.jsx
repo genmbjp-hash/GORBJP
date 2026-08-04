@@ -247,7 +247,7 @@ export default function Booking({ user }) {
           end_time: slot.endTime.toISOString(),
           duration_hours: 1,
           is_admin_booking: true,
-          status: 'pending',
+          status: 'active',  // ✅ Admin booking = active
           price: 0,
           payment_status: 'free',
           payment_method: 'admin',
@@ -275,7 +275,7 @@ export default function Booking({ user }) {
           end_time: slot.endTime.toISOString(),
           duration_hours: 1,
           is_admin_booking: true,
-          status: 'pending',
+          status: 'active',  // ✅ Admin booking = active
           price: 0,
           payment_status: 'free',
           payment_method: 'admin',
