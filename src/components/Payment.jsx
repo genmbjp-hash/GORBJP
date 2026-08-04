@@ -8,50 +8,80 @@ export default function Payment({ user }) {
   const location = useLocation()
   const showToast = useToast()
   const [loading, setLoading] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(600) // 10 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(600)
   const [booking, setBooking] = useState(null)
 
   const { bookingId, date, slot, duration, price } = location.state || {}
 
-  if (!bookingId || !date || !slot || !duration) {
-    navigate('/booking')
-    return null
-  }
+  // If no bookingId, try to find pending booking from database
+  const [isLoading, setIsLoading] = useState(true)
 
-  const startTime = new Date(slot.startTime)
-  const endTime = new Date(slot.endTime)
-
-  // Load booking to check status
   useEffect(() => {
-    const loadBooking = async () => {
-      const { data } = await getPendingBooking(bookingId)
-      if (data) {
-        setBooking(data)
-        // Calculate remaining time
-        const deadline = new Date(data.payment_deadline)
+    const findOrCheckBooking = async () => {
+      setIsLoading(true)
+      
+      // If bookingId is provided, use it
+      if (bookingId) {
+        const { data } = await getPendingBooking(bookingId)
+        if (data && data.status === 'pending') {
+          setBooking(data)
+          const deadline = new Date(data.payment_deadline)
+          const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
+          setTimeLeft(remaining)
+          setIsLoading(false)
+          return
+        }
+      }
+      
+      // If no bookingId, or booking is not pending, find any pending booking for this user
+      const { data: pendingList } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (pendingList && pendingList.length > 0) {
+        const pending = pendingList[0]
+        setBooking(pending)
+        const deadline = new Date(pending.payment_deadline)
         const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
         setTimeLeft(remaining)
+        
+        // Update location state with the found booking
+        // so it can be used by the rest of the component
+        // (We'll handle this below)
+        setIsLoading(false)
+        return
       }
+
+      // No pending booking found
+      navigate('/booking')
     }
-    loadBooking()
-  }, [bookingId])
+
+    findOrCheckBooking()
+  }, [bookingId, user.id, navigate])
 
   // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      // Auto-cancel on timeout
       const handleTimeout = async () => {
-        await cancelPendingBooking(bookingId)
+        if (booking?.id) {
+          await cancelPendingBooking(booking.id)
+        }
         showToast('⏰ Waktu pembayaran habis', 'warning')
         navigate('/payment-failed', {
           state: { 
-            bookingId, 
+            bookingId: booking?.id, 
             reason: 'Waktu pembayaran habis. Silakan coba lagi.',
             retry: true
           }
         })
       }
-      handleTimeout()
+      if (booking) {
+        handleTimeout()
+      }
       return
     }
 
@@ -60,7 +90,14 @@ export default function Payment({ user }) {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [timeLeft, bookingId, navigate, showToast])
+  }, [timeLeft, booking, navigate, showToast])
+
+  // Use booking data if available, otherwise use location state
+  const startTime = booking ? new Date(booking.start_time) : new Date(slot?.startTime)
+  const endTime = booking ? new Date(booking.end_time) : new Date(slot?.endTime)
+  const dateStr = booking ? booking.start_time.split('T')[0] : date
+  const durationHours = booking ? booking.duration_hours : duration
+  const priceTotal = booking ? booking.duration_hours * 30000 : price
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
@@ -88,16 +125,19 @@ export default function Payment({ user }) {
   }
 
   async function handlePayment() {
+    if (!booking) {
+      showToast('❌ Booking tidak ditemukan', 'error')
+      return
+    }
+
     setLoading(true)
 
-    // Simulate payment processing (2-3 seconds)
     await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000))
 
-    // 80% success rate
     const isSuccess = Math.random() < 0.8
 
     if (isSuccess) {
-      const { data, error } = await confirmPayment(bookingId)
+      const { data, error } = await confirmPayment(booking.id)
 
       if (error) {
         showToast('❌ Gagal memproses pembayaran: ' + error.message, 'error')
@@ -109,7 +149,6 @@ export default function Payment({ user }) {
         state: { booking: data }
       })
     } else {
-      // Random failure reason
       const reasons = [
         'Saldo Anda tidak mencukupi untuk transaksi ini',
         'Koneksi internet terputus, silakan coba lagi',
@@ -118,11 +157,11 @@ export default function Payment({ user }) {
       ]
       const randomReason = reasons[Math.floor(Math.random() * reasons.length)]
 
-      await cancelPendingBooking(bookingId)
+      await cancelPendingBooking(booking.id)
 
       navigate('/payment-failed', {
         state: {
-          bookingId,
+          bookingId: booking.id,
           reason: randomReason,
           retry: true
         }
@@ -130,6 +169,14 @@ export default function Payment({ user }) {
     }
 
     setLoading(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div className="spinner"></div>
+      </div>
+    )
   }
 
   return (
@@ -149,18 +196,16 @@ export default function Payment({ user }) {
       <div className="card" style={{ marginTop: '16px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>💳 Pembayaran</h2>
 
-        {/* Timer */}
         <div style={{ textAlign: 'center', marginBottom: '16px', padding: '12px', background: timeLeft < 60 ? '#FEE2E2' : '#FEF3C7', borderRadius: '8px' }}>
           <span style={{ fontSize: '14px', color: timeLeft < 60 ? '#991B1B' : '#92400E' }}>
             ⏰ Waktu tersisa: <strong>{formatTimeLeft(timeLeft)}</strong>
           </span>
         </div>
 
-        {/* Order Summary */}
         <div style={{ background: 'var(--primary-bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>📅 Tanggal</span>
-            <span style={{ fontWeight: 600 }}>{formatDateDisplay(date)}</span>
+            <span style={{ fontWeight: 600 }}>{formatDateDisplay(dateStr)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>⏰ Waktu</span>
@@ -168,20 +213,19 @@ export default function Payment({ user }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-200)' }}>
             <span style={{ color: 'var(--gray-600)' }}>⏱️ Durasi</span>
-            <span style={{ fontWeight: 600 }}>{duration} Jam</span>
+            <span style={{ fontWeight: 600 }}>{durationHours} Jam</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
             <span style={{ color: 'var(--gray-600)' }}>💰 Total</span>
             <span style={{ fontWeight: 700, color: 'var(--success)' }}>
               <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', marginRight: '8px' }}>
-                Rp {price.toLocaleString()}
+                Rp {priceTotal.toLocaleString()}
               </span>
               Rp 0 (Gratis)
             </span>
           </div>
         </div>
 
-        {/* Payment Methods (Dummy) */}
         <div style={{ marginBottom: '16px' }}>
           <p style={{ fontWeight: 600, marginBottom: '8px' }}>💳 Metode Pembayaran</p>
           <div style={{ padding: '12px 16px', background: '#F3F4F6', borderRadius: '8px' }}>
@@ -198,7 +242,7 @@ export default function Payment({ user }) {
           </p>
         </div>
 
-        <button onClick={handlePayment} className="btn btn-primary" disabled={loading || timeLeft <= 0}>
+        <button onClick={handlePayment} className="btn btn-primary" disabled={loading || timeLeft <= 0 || !booking}>
           {loading ? '⏳ Memproses...' : timeLeft <= 0 ? '⏰ Waktu Habis' : '💳 Bayar Sekarang'}
         </button>
       </div>
