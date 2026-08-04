@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, getBookingsForDate } from '../lib/supabase'
+import { supabase, getBookingsForDate, completeExpiredBookings } from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Booking({ user }) {
@@ -36,7 +36,12 @@ export default function Booking({ user }) {
       setIsAdmin(data?.role === 'admin')
     }
     checkAdmin()
-    loadBookings()
+    
+    const updateAndLoad = async () => {
+      await completeExpiredBookings()
+      await loadBookings()
+    }
+    updateAndLoad()
 
     const subscription = supabase
       .channel('bookings-changes')
