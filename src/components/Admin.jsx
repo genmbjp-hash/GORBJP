@@ -11,7 +11,8 @@ import {
   forceLampOn,
   forceLampOff,
   getAllBookings,
-  signOut
+  signOut,
+  completeExpiredBookings
 } from '../lib/supabase'
 import { useToast } from '../App'
 
@@ -30,7 +31,12 @@ export default function Admin({ user }) {
   const showToast = useToast()
 
   useEffect(() => {
-    loadAllData()
+    const updateAndLoad = async () => {
+      await completeExpiredBookings()
+      await loadAllData()
+    }
+    updateAndLoad()
+
     const interval = setInterval(() => {
       loadDeviceStatus()
       loadAllBookings()
@@ -219,41 +225,37 @@ export default function Admin({ user }) {
     )
   }
 
-return (
-  <div className="container" style={{ paddingTop: '16px' }}>
-    {/* Header */}
-    <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
-      <div className="header-content" style={{ padding: 0 }}>
-        <div className="logo">
-          <span className="logo-icon">🏛️</span>
-          <div>
-            <span className="logo-text">Gedung Serbaguna BJP</span>
-            <span className="logo-sub">👑 Panel Admin</span>
+  return (
+    <div className="container" style={{ paddingTop: '16px' }}>
+      {/* Header */}
+      <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
+        <div className="header-content" style={{ padding: 0 }}>
+          <div className="logo">
+            <span className="logo-icon">🏛️</span>
+            <div>
+              <span className="logo-text">Gedung Serbaguna BJP</span>
+              <span className="logo-sub">👑 Panel Admin</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {newBookingsCount > 0 && (
+              <span className="badge badge-active" style={{ fontSize: '14px' }}>
+                🔔 {newBookingsCount} baru
+              </span>
+            )}
+            <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+              Keluar
+            </button>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {newBookingsCount > 0 && (
-            <span className="badge badge-active" style={{ fontSize: '14px' }}>
-              🔔 {newBookingsCount} baru
-            </span>
-          )}
-          <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
-            Keluar
-          </button>
-        </div>
       </div>
-    </div>
 
-    {/* === NEW: Book Venue Button === */}
-    <div style={{ marginBottom: '16px' }}>
-      <button 
-        onClick={() => navigate('/booking')} 
-        className="btn btn-primary"
-        style={{ width: '100%' }}
-      >
-        📖 Book Venue
-      </button>
-    </div>
+      {/* Book Venue Button */}
+      <div style={{ marginBottom: '16px' }}>
+        <button onClick={() => navigate('/booking')} className="btn btn-primary" style={{ width: '100%' }}>
+          📖 Book Venue
+        </button>
+      </div>
 
       {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
@@ -420,7 +422,7 @@ return (
             <div key={b.id} className="booking-item">
               <div>
                 <div style={{ fontWeight: 600, fontSize: '14px' }}>
-                  {b.profiles?.full_name || 'Unknown'}
+                  {b.profiles?.display_name || b.profiles?.full_name || 'Unknown'}
                   <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
@@ -432,7 +434,7 @@ return (
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin}</div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>{b.pin || '-'}</div>
               </div>
             </div>
           ))
