@@ -1,6 +1,14 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { createPendingBooking, cancelExpiredPendingBookings, validateVoucher, createBookingWithVoucher } from '../lib/supabase'
+import { 
+  supabase, 
+  createPendingBooking, 
+  cancelExpiredPendingBookings, 
+  validateVoucher, 
+  calculateDiscount, 
+  calculateFinalPrice,
+  createBookingWithVoucher 
+} from '../lib/supabase'
 import { useToast } from '../App'
 
 export default function Checkout({ user }) {
@@ -22,7 +30,9 @@ export default function Checkout({ user }) {
 
   const startTime = new Date(slot.startTime)
   const endTime = new Date(slot.endTime)
-  const finalPrice = voucherApplied ? 0 : price
+  const originalPrice = price
+  const finalPrice = voucherApplied ? calculateFinalPrice(originalPrice, voucherApplied) : originalPrice
+  const discountAmount = voucherApplied ? calculateDiscount(originalPrice, voucherApplied) : 0
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
@@ -43,6 +53,14 @@ export default function Checkout({ user }) {
     })
   }
 
+  function formatDiscountLabel(voucher) {
+    if (!voucher) return ''
+    if (voucher.discount_type === 'free') return 'Gratis (100%)'
+    if (voucher.discount_type === 'percentage') return `${voucher.discount_value}%`
+    if (voucher.discount_type === 'fixed') return `Rp ${voucher.discount_value.toLocaleString()}`
+    return ''
+  }
+
   async function handleApplyVoucher() {
     if (!voucherCode.trim()) {
       setVoucherError('Masukkan kode voucher')
@@ -52,16 +70,16 @@ export default function Checkout({ user }) {
     setApplyingVoucher(true)
     setVoucherError('')
 
-    const { data, error } = await validateVoucher(voucherCode)
+    const { data, error } = await validateVoucher(voucherCode, duration)
 
     if (error || !data) {
-      setVoucherError('Kode voucher tidak valid')
+      setVoucherError(error?.message || 'Kode voucher tidak valid')
       setApplyingVoucher(false)
       return
     }
 
     setVoucherApplied(data)
-    showToast('✅ Voucher berhasil diterapkan!', 'success')
+    showToast(`✅ Voucher "${data.code}" diterapkan!`, 'success')
     setApplyingVoucher(false)
   }
 
@@ -73,7 +91,7 @@ export default function Checkout({ user }) {
     let result
 
     if (voucherApplied) {
-      // Create booking with voucher (free)
+      // Create booking with voucher (free or discounted)
       const { data, error } = await createBookingWithVoucher(
         user.id,
         { date: date, hour: slot.hour },
@@ -87,7 +105,6 @@ export default function Checkout({ user }) {
         return
       }
 
-      // Booking is already active, go directly to success
       navigate('/payment-success', {
         state: { booking: data }
       })
@@ -97,7 +114,7 @@ export default function Checkout({ user }) {
         user.id,
         { date: date, hour: slot.hour },
         duration,
-        price
+        finalPrice
       )
 
       if (error) {
@@ -112,7 +129,9 @@ export default function Checkout({ user }) {
           date: date,
           slot: slot,
           duration: duration,
-          price: price
+          price: finalPrice,
+          originalPrice: originalPrice,
+          discountAmount: discountAmount
         }
       })
     }
@@ -156,9 +175,26 @@ export default function Checkout({ user }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
             <span style={{ color: 'var(--gray-600)' }}>💰 Total</span>
             <span style={{ fontWeight: 700, color: voucherApplied ? 'var(--success)' : 'var(--primary)', fontSize: '18px' }}>
-              {voucherApplied ? 'Rp 0 (Gratis)' : `Rp ${finalPrice.toLocaleString()}`}
+              {voucherApplied ? (
+                <>
+                  <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', marginRight: '8px' }}>
+                    Rp {originalPrice.toLocaleString()}
+                  </span>
+                  Rp {finalPrice.toLocaleString()}
+                </>
+              ) : (
+                `Rp ${originalPrice.toLocaleString()}`
+              )}
             </span>
           </div>
+          {voucherApplied && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', marginTop: '4px', borderTop: '1px solid var(--gray-200)' }}>
+              <span style={{ color: 'var(--gray-600)' }}>🎫 Diskon</span>
+              <span style={{ fontWeight: 600, color: 'var(--success)' }}>
+                - Rp {discountAmount.toLocaleString()} ({formatDiscountLabel(voucherApplied)})
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Voucher Section */}
@@ -203,19 +239,22 @@ export default function Checkout({ user }) {
           {voucherError && <p style={{ color: 'var(--danger)', fontSize: '13px', marginTop: '4px' }}>{voucherError}</p>}
           {voucherApplied && (
             <p style={{ color: 'var(--success)', fontSize: '13px', marginTop: '4px' }}>
-              ✅ Voucher "{voucherApplied.code}" diterapkan! Total: Rp 0
+              ✅ Voucher "{voucherApplied.code}" diterapkan! 
+              {voucherApplied.discount_type === 'free' && ' Booking gratis!'}
+              {voucherApplied.discount_type === 'percentage' && ` Diskon ${voucherApplied.discount_value}%`}
+              {voucherApplied.discount_type === 'fixed' && ` Diskon Rp ${voucherApplied.discount_value.toLocaleString()}`}
             </p>
           )}
         </div>
 
         <div style={{ background: '#FEF3C7', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
           <p style={{ fontSize: '14px', color: '#92400E' }}>
-            {voucherApplied ? '✅ Booking gratis! Slot akan langsung aktif.' : '⏰ Slot akan ditahan selama 10 menit untuk menyelesaikan pembayaran.'}
+            {voucherApplied ? '✅ Booking dengan voucher! Slot akan langsung aktif.' : '⏰ Slot akan ditahan selama 10 menit untuk menyelesaikan pembayaran.'}
           </p>
         </div>
 
         <button onClick={handleConfirmBooking} className="btn btn-primary" disabled={loading}>
-          {loading ? '⏳ Memproses...' : voucherApplied ? '✅ Booking Gratis' : '✅ Konfirmasi Booking'}
+          {loading ? '⏳ Memproses...' : voucherApplied ? '✅ Booking dengan Voucher' : '✅ Konfirmasi Booking'}
         </button>
 
         <button onClick={() => navigate('/booking')} className="btn btn-outline" style={{ marginTop: '8px' }}>
