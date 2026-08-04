@@ -10,6 +10,9 @@ import Booking from './components/Booking'
 import Admin from './components/Admin'
 import Checkout from './components/Checkout'
 import Confirmation from './components/Confirmation'
+import Payment from './components/Payment'
+import PaymentSuccess from './components/PaymentSuccess'
+import PaymentFailed from './components/PaymentFailed'
 
 // Toast Context
 const ToastContext = React.createContext()
@@ -126,6 +129,27 @@ function App() {
               <Navigate to="/" />
             )
           } />
+          <Route path="/payment" element={
+  user && profile?.status === 'approved' ? (
+    <Payment user={user} />
+  ) : (
+    <Navigate to="/" />
+  )
+} />
+<Route path="/payment-success" element={
+  user && profile?.status === 'approved' ? (
+    <PaymentSuccess />
+  ) : (
+    <Navigate to="/" />
+  )
+} />
+<Route path="/payment-failed" element={
+  user && profile?.status === 'approved' ? (
+    <PaymentFailed />
+  ) : (
+    <Navigate to="/" />
+  )
+} />
         </Routes>
 
         <div className="toast-container">
