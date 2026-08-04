@@ -14,7 +14,7 @@ export default function Payment({ user }) {
   const { bookingId, date, slot, duration, price, originalPrice, discountAmount } = location.state || {}
 
   // ✅ Replace with your admin WhatsApp number (without +)
-  const ADMIN_PHONE = '6281234567890'
+  const ADMIN_PHONE = '6281998889199'
   const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
 
   useEffect(() => {
