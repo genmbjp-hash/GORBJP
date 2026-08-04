@@ -487,3 +487,78 @@ export async function validateVoucher(code) {
     .single()
   return { data, error }
 }
+
+// ============================================
+// BOOKING WITH VOUCHER (FREE)
+// ============================================
+
+export async function createBookingWithVoucher(userId, slotData, duration, voucherId) {
+  const { date, hour } = slotData
+
+  const startDateTime = new Date(date)
+  startDateTime.setHours(hour, 0, 0, 0)
+  const endDateTime = new Date(startDateTime)
+  endDateTime.setHours(hour + duration, 0, 0, 0)
+
+  const startOfDay = new Date(date)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(date)
+  endOfDay.setHours(23, 59, 59, 999)
+
+  const { data: existing, error: checkError } = await supabase
+    .from('bookings')
+    .select('*')
+    .in('status', ['pending', 'active'])
+    .gte('start_time', startOfDay.toISOString())
+    .lte('start_time', endOfDay.toISOString())
+    .filter('start_time', 'lt', endDateTime.toISOString())
+    .filter('end_time', 'gt', startDateTime.toISOString())
+
+  if (checkError) return { error: checkError }
+  if (existing.length > 0) {
+    return { error: { message: 'Slot sudah tidak tersedia' } }
+  }
+
+  // Generate PIN
+  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
+  if (pinError) return { error: pinError }
+
+  // Create booking with voucher (active immediately)
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      user_id: userId,
+      pin: pinData,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration_hours: duration,
+      price: 0,
+      payment_status: 'free',
+      payment_method: 'voucher',
+      status: 'active',
+      voucher_id: voucherId
+    })
+    .select()
+    .single()
+
+  if (!error) {
+    // Send Telegram notification
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      if (profile) {
+        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
+        await fetch(EDGE_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ booking: data, profile, type: 'booking' })
+        })
+      }
+    } catch (err) { /* silent fail */ }
+  }
+
+  return { data, error }
+}
