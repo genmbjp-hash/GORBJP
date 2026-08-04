@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPendingBooking } from '../lib/supabase'
 import { useToast } from '../App'
@@ -8,6 +8,7 @@ export default function Dashboard({ user, profile }) {
   const [loading, setLoading] = useState(true)
   const [pendingBooking, setPendingBooking] = useState(null)
   const [timeLeft, setTimeLeft] = useState(0)
+  const timerRef = useRef(null)
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -16,12 +17,10 @@ export default function Dashboard({ user, profile }) {
     const { data } = await getUserBookings(user.id)
     setBookings(data || [])
     
-    // Find pending booking
     const pending = data?.find(b => b.status === 'pending')
     setPendingBooking(pending || null)
     
     if (pending) {
-      // Calculate remaining time
       const deadline = new Date(pending.payment_deadline)
       const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
       setTimeLeft(remaining)
@@ -30,29 +29,63 @@ export default function Dashboard({ user, profile }) {
     setLoading(false)
   }
 
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [])
+
+  // Load bookings on mount
   useEffect(() => {
     const updateAndLoad = async () => {
       await completeExpiredBookings()
       await loadBookings()
     }
     updateAndLoad()
+  }, [])
 
-    // Timer for pending booking
-    const timer = setInterval(() => {
-      if (pendingBooking) {
-        const deadline = new Date(pendingBooking.payment_deadline)
-        const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
-        setTimeLeft(remaining)
-        
-        // If time is up, reload to refresh status
-        if (remaining === 0) {
-          loadBookings()
-        }
+  // Timer for pending booking (runs separately, doesn't trigger full re-render)
+  useEffect(() => {
+    // Clear existing timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+
+    if (!pendingBooking) {
+      setTimeLeft(0)
+      return
+    }
+
+    // Initial time
+    const deadline = new Date(pendingBooking.payment_deadline)
+    const initialRemaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
+    setTimeLeft(initialRemaining)
+
+    // Start interval
+    timerRef.current = setInterval(() => {
+      const deadline = new Date(pendingBooking.payment_deadline)
+      const remaining = Math.max(0, Math.floor((deadline - new Date()) / 1000))
+      setTimeLeft(remaining)
+      
+      if (remaining === 0) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+        // Reload bookings to update status
+        loadBookings()
       }
     }, 1000)
 
-    return () => clearInterval(timer)
-  }, [pendingBooking])
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [pendingBooking?.id]) // Only re-run when pending booking ID changes
 
   async function handleCancelPending() {
     if (!pendingBooking) return
