@@ -562,3 +562,246 @@ export async function createBookingWithVoucher(userId, slotData, duration, vouch
 
   return { data, error }
 }
+
+// ============================================
+// VOUCHER FUNCTIONS
+// ============================================
+
+// 1. Validate and get voucher details
+export async function validateVoucher(code, duration) {
+  // Case-insensitive lookup
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .single()
+
+  if (error) return { error: { message: 'Kode voucher tidak ditemukan' } }
+  if (!data) return { error: { message: 'Kode voucher tidak ditemukan' } }
+
+  // Check if active
+  if (!data.active) {
+    return { error: { message: 'Voucher sudah tidak aktif' } }
+  }
+
+  // Check expiry
+  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    return { error: { message: 'Voucher sudah kadaluarsa' } }
+  }
+
+  // Check max uses
+  if (data.max_uses > 0 && data.used_count >= data.max_uses) {
+    return { error: { message: 'Voucher sudah mencapai batas penggunaan' } }
+  }
+
+  // Check duration limits
+  if (duration < data.min_duration) {
+    return { error: { message: `Minimal booking ${data.min_duration} jam untuk voucher ini` } }
+  }
+
+  if (data.max_duration && duration > data.max_duration) {
+    return { error: { message: `Maksimal booking ${data.max_duration} jam untuk voucher ini` } }
+  }
+
+  return { data, error: null }
+}
+
+// 2. Calculate discount
+export function calculateDiscount(originalPrice, voucher) {
+  if (!voucher) return 0
+
+  if (voucher.discount_type === 'free') {
+    return originalPrice
+  }
+
+  if (voucher.discount_type === 'percentage') {
+    return Math.round(originalPrice * (voucher.discount_value / 100))
+  }
+
+  if (voucher.discount_type === 'fixed') {
+    return Math.min(originalPrice, voucher.discount_value)
+  }
+
+  return 0
+}
+
+// 3. Get final price after discount
+export function calculateFinalPrice(originalPrice, voucher) {
+  const discount = calculateDiscount(originalPrice, voucher)
+  return originalPrice - discount
+}
+
+// 4. Create booking with voucher
+export async function createBookingWithVoucher(userId, slotData, duration, voucherId) {
+  const { date, hour } = slotData
+
+  const startDateTime = new Date(date)
+  startDateTime.setHours(hour, 0, 0, 0)
+  const endDateTime = new Date(startDateTime)
+  endDateTime.setHours(hour + duration, 0, 0, 0)
+
+  // Check availability
+  const startOfDay = new Date(date)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(date)
+  endOfDay.setHours(23, 59, 59, 999)
+
+  const { data: existing, error: checkError } = await supabase
+    .from('bookings')
+    .select('*')
+    .in('status', ['pending', 'active'])
+    .gte('start_time', startOfDay.toISOString())
+    .lte('start_time', endOfDay.toISOString())
+    .filter('start_time', 'lt', endDateTime.toISOString())
+    .filter('end_time', 'gt', startDateTime.toISOString())
+
+  if (checkError) return { error: checkError }
+  if (existing.length > 0) {
+    return { error: { message: 'Slot sudah tidak tersedia' } }
+  }
+
+  // Get voucher details
+  const { data: voucher, error: voucherError } = await supabase
+    .from('vouchers')
+    .select('*')
+    .eq('id', voucherId)
+    .single()
+
+  if (voucherError) return { error: voucherError }
+
+  // Calculate price
+  const originalPrice = calculatePrice(duration)
+  const discount = calculateDiscount(originalPrice, voucher)
+  const finalPrice = originalPrice - discount
+
+  // Generate PIN
+  const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
+  if (pinError) return { error: pinError }
+
+  // Create booking with voucher
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      user_id: userId,
+      pin: pinData,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration_hours: duration,
+      original_price: originalPrice,
+      price: finalPrice,
+      discount_applied: discount,
+      payment_status: 'free',
+      payment_method: 'voucher',
+      status: 'active',
+      voucher_id: voucherId
+    })
+    .select()
+    .single()
+
+  if (error) return { error }
+
+  // Update voucher usage count
+  await supabase
+    .from('vouchers')
+    .update({ used_count: supabase.rpc('increment', { row_id: voucherId }) })
+    .eq('id', voucherId)
+
+  // Track usage
+  await supabase
+    .from('voucher_usage')
+    .insert({
+      voucher_id: voucherId,
+      user_id: userId,
+      booking_id: data.id
+    })
+
+  // Send Telegram notification
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    if (profile) {
+      const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
+      await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ booking: data, profile, type: 'booking' })
+      })
+    }
+  } catch (err) { /* silent fail */ }
+
+  return { data, error }
+}
+
+// 5. Admin: Create voucher
+export async function createVoucher(code, description, discountType, discountValue, maxUses, expiresAt, minDuration, maxDuration, adminId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .insert({
+      code: code.toUpperCase(),
+      description: description || null,
+      discount_type: discountType,
+      discount_value: discountType === 'free' ? 0 : discountValue,
+      max_uses: maxUses || 0,
+      expires_at: expiresAt || null,
+      min_duration: minDuration || 1,
+      max_duration: maxDuration || null,
+      created_by: adminId,
+      active: true
+    })
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+// 6. Admin: Get all vouchers
+export async function getVouchers() {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*, profiles(full_name, display_name)')
+    .order('created_at', { ascending: false })
+
+  return { data, error }
+}
+
+// 7. Admin: Update voucher
+export async function updateVoucher(voucherId, updates) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', voucherId)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+// 8. Admin: Deactivate voucher
+export async function deactivateVoucher(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .update({ active: false, updated_at: new Date().toISOString() })
+    .eq('id', voucherId)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+// 9. Admin: Delete voucher
+export async function deleteVoucher(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .delete()
+    .eq('id', voucherId)
+    .select()
+    .single()
+
+  return { data, error }
+}
