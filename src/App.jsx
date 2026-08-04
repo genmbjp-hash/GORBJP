@@ -27,30 +27,70 @@ function App() {
   const [toasts, setToasts] = useState([])
   const navigate = useNavigate()
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        loadProfile(session.user.id)
-      } else {
-        setLoading(false)
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      setUser(session.user)
+      loadProfile(session.user.id)
+    } else {
+      setLoading(false)
+    }
+  })
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (session?.user) {
+      setUser(session.user)
+      await loadProfile(session.user.id)
+      
+      // ✅ Check for pending booking and redirect to payment
+      if (session.user) {
+        const { data: pendingData } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('status', 'pending')
+          .single()
+        
+        if (pendingData) {
+          // Check if still within payment deadline
+          const { data: booking } = await supabase
+            .from('bookings')
+            .select('payment_deadline, duration_hours, start_time, end_time')
+            .eq('id', pendingData.id)
+            .single()
+          
+          if (booking) {
+            const deadline = new Date(booking.payment_deadline)
+            if (deadline > new Date()) {
+              // Still valid, redirect to payment
+              navigate('/payment', {
+                state: {
+                  bookingId: pendingData.id,
+                  date: booking.start_time.split('T')[0],
+                  slot: {
+                    hour: new Date(booking.start_time).getHours(),
+                    startTime: booking.start_time,
+                    endTime: booking.end_time
+                  },
+                  duration: booking.duration_hours,
+                  price: booking.duration_hours * 30000
+                }
+              })
+            }
+          }
+        }
       }
-    })
+      
+    } else {
+      setUser(null)
+      setProfile(null)
+      setLoading(false)
+    }
+  })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-        loadProfile(session.user.id)
-      } else {
-        setUser(null)
-        setProfile(null)
-        setLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
+  return () => subscription.unsubscribe()
+}, [])
+  
   async function loadProfile(userId) {
     const { data } = await getProfile(userId)
     setProfile(data)
