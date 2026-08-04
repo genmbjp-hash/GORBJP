@@ -9,7 +9,7 @@ export default function Checkout({ user }) {
   const showToast = useToast()
   const [loading, setLoading] = useState(false)
 
-  const { date, slot, duration } = location.state || {}
+  const { date, slot, duration, price } = location.state || {}
 
   if (!date || !slot || !duration) {
     navigate('/booking')
@@ -18,7 +18,6 @@ export default function Checkout({ user }) {
 
   const startTime = new Date(slot.startTime)
   const endTime = new Date(slot.endTime)
-  const price = duration * 30000 // Rp 30.000 per hour
 
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
@@ -42,13 +41,13 @@ export default function Checkout({ user }) {
   async function handleConfirmBooking() {
     setLoading(true)
 
-    // Clean up expired pending bookings first
     await cancelExpiredPendingBookings()
 
     const { data, error } = await createPendingBooking(
       user.id,
       { date: date, hour: slot.hour },
-      duration
+      duration,
+      price
     )
 
     if (error) {
@@ -57,7 +56,6 @@ export default function Checkout({ user }) {
       return
     }
 
-    // Navigate to payment page with booking ID
     navigate('/payment', {
       state: {
         bookingId: data.id,
@@ -103,20 +101,16 @@ export default function Checkout({ user }) {
             <span style={{ fontWeight: 600 }}>{duration} Jam</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-            <span style={{ color: 'var(--gray-600)' }}>💰 Harga</span>
-            <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-              <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', marginRight: '8px' }}>
-                Rp {price.toLocaleString()}
-              </span>
-              Rp 0 (Gratis)
+            <span style={{ color: 'var(--gray-600)' }}>💰 Total</span>
+            <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '18px' }}>
+              Rp {price.toLocaleString()}
             </span>
           </div>
         </div>
 
         <div style={{ background: '#FEF3C7', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
           <p style={{ fontSize: '14px', color: '#92400E' }}>
-            ⚠️ Mode Uji Coba — Tidak ada pembayaran yang diproses.
-            Slot akan ditahan selama 10 menit.
+            ⏰ Slot akan ditahan selama 10 menit untuk menyelesaikan pembayaran.
           </p>
         </div>
 
