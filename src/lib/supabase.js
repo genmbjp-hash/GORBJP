@@ -309,7 +309,7 @@ export async function forceLampOff(adminId) {
 // PAYMENT FUNCTIONS
 // ============================================
 
-export async function createPendingBooking(userId, slotData, duration) {
+export async function createPendingBooking(userId, slotData, duration, price) {
   const { date, hour } = slotData
 
   const startDateTime = new Date(date)
@@ -317,7 +317,6 @@ export async function createPendingBooking(userId, slotData, duration) {
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
 
-  // Check if slot is available
   const startOfDay = new Date(date)
   startOfDay.setHours(0, 0, 0, 0)
   const endOfDay = new Date(date)
@@ -337,8 +336,7 @@ export async function createPendingBooking(userId, slotData, duration) {
     return { error: { message: 'Slot sudah tidak tersedia' } }
   }
 
-  // Create pending booking (no PIN yet)
-  const paymentDeadline = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+  const paymentDeadline = new Date(Date.now() + 10 * 60 * 1000)
 
   const { data, error } = await supabase
     .from('bookings')
@@ -348,7 +346,7 @@ export async function createPendingBooking(userId, slotData, duration) {
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       duration_hours: duration,
-      price: duration * 30000, // Rp 30.000 per hour
+      price: price,
       payment_status: 'pending',
       payment_method: 'dummy',
       status: 'pending',
@@ -361,11 +359,9 @@ export async function createPendingBooking(userId, slotData, duration) {
 }
 
 export async function confirmPayment(bookingId) {
-  // Generate PIN
   const { data: pinData, error: pinError } = await supabase.rpc('generate_pin')
   if (pinError) return { error: pinError }
 
-  // Update booking: pending → active, set PIN
   const { data, error } = await supabase
     .from('bookings')
     .update({
@@ -379,7 +375,6 @@ export async function confirmPayment(bookingId) {
     .single()
 
   if (!error) {
-    // Send Telegram notification
     try {
       const { data: profile } = await supabase
         .from('profiles')
