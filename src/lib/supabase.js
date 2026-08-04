@@ -431,3 +431,59 @@ export async function getPendingBooking(bookingId) {
     .single()
   return { data, error }
 }
+
+// ============================================
+// VOUCHER FUNCTIONS
+// ============================================
+
+export async function createVoucher(code, description, adminId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .insert({
+      code: code.toUpperCase(),
+      description: description,
+      created_by: adminId,
+      active: true
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function getVouchers() {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*, profiles(full_name, display_name)')
+    .order('created_at', { ascending: false })
+  return { data, error }
+}
+
+export async function deactivateVoucher(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .update({ active: false })
+    .eq('id', voucherId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function deleteVoucher(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .delete()
+    .eq('id', voucherId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function validateVoucher(code) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .eq('active', true)
+    .single()
+  return { data, error }
+}
