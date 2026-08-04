@@ -26,6 +26,15 @@ export default function Booking({ user }) {
   const todayStr = new Date().toISOString().split('T')[0]
   const maxDateStr = new Date(Date.now() + MAX_DAYS_AHEAD * 86400000).toISOString().split('T')[0]
 
+  // ✅ Calculate price based on duration
+  function calculatePrice(duration) {
+    if (duration <= 2) {
+      return duration * 50000
+    } else {
+      return (2 * 50000) + ((duration - 2) * 30000)
+    }
+  }
+
   useEffect(() => {
     const checkAdmin = async () => {
       const { data } = await supabase
@@ -138,40 +147,48 @@ export default function Booking({ user }) {
     setSelectedSlots([])
   }
 
+  // ✅ Updated: Allow unlimited consecutive slots
   function handleSlotClick(slot) {
     if (!slot.isAvailable || slot.isAdminBooking) {
       showToast('⚠️ Slot tidak tersedia', 'warning')
       return
     }
 
-    if (selectedSlots.length === 2) {
-      setSelectedSlots([])
+    // If clicking a slot that's already selected, deselect it and all after it
+    const existingIndex = selectedSlots.findIndex(s => s.hour === slot.hour)
+    if (existingIndex >= 0) {
+      // Remove this slot and all slots after it
+      setSelectedSlots(selectedSlots.slice(0, existingIndex))
       return
     }
 
-    if (selectedSlots.length === 1 && selectedSlots[0].hour === slot.hour) {
-      setSelectedSlots([])
-      return
-    }
-
+    // If no slots selected, select this one
     if (selectedSlots.length === 0) {
       setSelectedSlots([slot])
       return
     }
 
-    if (selectedSlots.length === 1) {
-      const firstSlot = selectedSlots[0]
-      const isAdjacent = slot.hour === firstSlot.hour + 1
-      const nextSlot = bookingSlots.find(s => s.hour === firstSlot.hour + 1)
-      const isNextAvailable = nextSlot && nextSlot.isAvailable && !nextSlot.isAdminBooking
-      if (isAdjacent && isNextAvailable) {
-        setSelectedSlots([firstSlot, slot])
-      } else {
-        setSelectedSlots([slot])
-      }
+    // Check if this slot is consecutive to the last selected slot
+    const lastSlot = selectedSlots[selectedSlots.length - 1]
+    const isConsecutive = slot.hour === lastSlot.hour + 1
+    
+    // Check if the gap slot is available
+    const gapSlot = bookingSlots.find(s => s.hour === lastSlot.hour + 1)
+    const isGapAvailable = gapSlot && gapSlot.isAvailable && !gapSlot.isAdminBooking
+
+    if (isConsecutive && isGapAvailable) {
+      // Add the slot to selection
+      setSelectedSlots([...selectedSlots, slot])
+    } else if (slot.hour < selectedSlots[0].hour) {
+      // If clicking a slot before the first selected, start new selection
+      setSelectedSlots([slot])
+    } else {
+      // Otherwise, start new selection with this slot
+      setSelectedSlots([slot])
     }
   }
 
+  // Admin: toggle slot selection
   function handleAdminSlotToggle(slot) {
     if (!isAdmin || slot.isBooked) return
     const index = selectedSlots.findIndex(s => s.hour === slot.hour)
@@ -180,7 +197,8 @@ export default function Booking({ user }) {
       newSelected.splice(index, 1)
       setSelectedSlots(newSelected)
     } else {
-      setSelectedSlots([...selectedSlots, slot])
+      // For admin, allow selecting any slots (non-consecutive)
+      setSelectedSlots([...selectedSlots, slot].sort((a, b) => a.hour - b.hour))
     }
   }
 
@@ -247,7 +265,7 @@ export default function Booking({ user }) {
           end_time: slot.endTime.toISOString(),
           duration_hours: 1,
           is_admin_booking: true,
-          status: 'active',  // ✅ Admin booking = active
+          status: 'active',
           price: 0,
           payment_status: 'free',
           payment_method: 'admin',
@@ -275,7 +293,7 @@ export default function Booking({ user }) {
           end_time: slot.endTime.toISOString(),
           duration_hours: 1,
           is_admin_booking: true,
-          status: 'active',  // ✅ Admin booking = active
+          status: 'active',
           price: 0,
           payment_status: 'free',
           payment_method: 'admin',
@@ -308,7 +326,16 @@ export default function Booking({ user }) {
   function getSelectedStartEnd() {
     if (selectedSlots.length === 0) return null
     const sorted = [...selectedSlots].sort((a, b) => a.hour - b.hour)
-    return { start: sorted[0].startTime, end: sorted[sorted.length - 1].endTime, duration: sorted.length * SLOT_DURATION }
+    return { 
+      start: sorted[0].startTime, 
+      end: sorted[sorted.length - 1].endTime, 
+      duration: sorted.length * SLOT_DURATION 
+    }
+  }
+
+  function getTotalPrice() {
+    const duration = getSelectedDuration()
+    return calculatePrice(duration)
   }
 
   function handleProceedToCheckout() {
@@ -316,7 +343,19 @@ export default function Booking({ user }) {
       showToast('❌ Silakan pilih slot terlebih dahulu', 'warning')
       return
     }
+    
+    // Check if slots are consecutive
+    const sorted = [...selectedSlots].sort((a, b) => a.hour - b.hour)
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i + 1].hour !== sorted[i].hour + 1) {
+        showToast('❌ Slot harus berurutan (consecutive)', 'warning')
+        return
+      }
+    }
+
     const range = getSelectedStartEnd()
+    const totalPrice = getTotalPrice()
+    
     navigate('/checkout', {
       state: {
         date: selectedDate,
@@ -325,13 +364,15 @@ export default function Booking({ user }) {
           startTime: range.start.toISOString(),
           endTime: range.end.toISOString()
         },
-        duration: getSelectedDuration()
+        duration: getSelectedDuration(),
+        price: totalPrice
       }
     })
   }
 
   const range = getSelectedStartEnd()
   const duration = getSelectedDuration()
+  const totalPrice = calculatePrice(duration)
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
 
   return (
@@ -373,6 +414,34 @@ export default function Booking({ user }) {
         </div>
       </div>
 
+      {/* Price Display */}
+      {selectedSlots.length > 0 && (
+        <div className="card" style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <span style={{ fontWeight: 600 }}>
+                ✅ {formatTime(range.start)} - {formatTime(range.end)}
+              </span>
+              <span style={{ marginLeft: '8px', fontSize: '14px', color: 'var(--gray-500)' }}>
+                ({duration} jam)
+              </span>
+            </div>
+            <div>
+              <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '18px' }}>
+                Rp {totalPrice.toLocaleString()}
+              </span>
+              <button 
+                onClick={() => setSelectedSlots([])} 
+                className="btn btn-outline btn-sm"
+                style={{ width: 'auto', minHeight: '30px', padding: '2px 12px', fontSize: '12px', marginLeft: '8px' }}
+              >
+                ✕ Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAdmin && (
         <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
@@ -395,14 +464,6 @@ export default function Booking({ user }) {
               <button onClick={() => { setShowReasonModal(false); setPendingAction(null); setClosureReason(''); }} className="btn btn-outline" style={{ flex: 1 }}>Batal</button>
               <button onClick={executeAdminAction} className="btn btn-primary" style={{ flex: 1 }}>Konfirmasi</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {!isAdmin && selectedSlots.length > 0 && range && (
-        <div className="card" style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <span style={{ fontWeight: 600 }}>✅ {formatTime(range.start)} - {formatTime(range.end)} <span style={{ marginLeft: '8px', fontSize: '14px', color: 'var(--gray-500)' }}>({duration} jam)</span></span>
           </div>
         </div>
       )}
@@ -447,8 +508,7 @@ export default function Booking({ user }) {
                     ) : isSelected ? <span style={{ color: 'var(--primary)', fontWeight: 600 }}>✅ Dipilih</span>
                     : <span style={{ color: 'var(--success)', fontWeight: 500 }}>🟢 Tersedia</span>}
                   </div>
-                  {isSelected && !isAdmin && <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>{selectedSlots.length > 1 ? `(${selectedSlots.length} jam)` : '(1 jam)'}</span>}
-                  {isSelected && isAdmin && <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>✓</span>}
+                  {isSelected && <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>✓</span>}
                 </div>
               )
             })}
@@ -457,8 +517,13 @@ export default function Booking({ user }) {
       </div>
 
       {!isAdmin && (
-        <button onClick={handleProceedToCheckout} className="btn btn-primary" disabled={selectedSlots.length === 0 || loading} style={{ marginTop: '16px' }}>
-          {selectedSlots.length === 0 ? 'Pilih slot terlebih dahulu' : '📖 Pesan Sekarang'}
+        <button 
+          onClick={handleProceedToCheckout} 
+          className="btn btn-primary" 
+          disabled={selectedSlots.length === 0 || loading} 
+          style={{ marginTop: '16px' }}
+        >
+          {selectedSlots.length === 0 ? 'Pilih slot terlebih dahulu' : `📖 Pesan Sekarang (Rp ${totalPrice.toLocaleString()})`}
         </button>
       )}
     </div>
