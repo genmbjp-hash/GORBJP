@@ -76,7 +76,7 @@ export default function Booking({ user }) {
   const [pendingAction, setPendingAction] = useState(null)
   const [isLoadingDate, setIsLoadingDate] = useState(false)
 
-  // ✅ Refs for request locking
+  // Refs for request locking
   const isFetchingRef = useRef(false)
   const isMountedRef = useRef(true)
 
@@ -156,7 +156,9 @@ export default function Booking({ user }) {
     } finally {
       setLoading(false)
     }
-  }, [selectedDate, generateSlots, showToast])
+    // ✅ FIX 1: Removed showToast from dependency array to prevent render looping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, generateSlots]) 
 
   // ============================================
   // DATE HANDLING
@@ -191,7 +193,13 @@ export default function Booking({ user }) {
 
     if (pendingBookingFromDashboard) {
       setBookingData(pendingBookingFromDashboard)
-      setSelectedDate(new Date(pendingBookingFromDashboard.start_time))
+      
+      // ✅ FIX 2: Break the Date object loop by comparing exact timestamps
+      const newTargetDate = new Date(pendingBookingFromDashboard.start_time)
+      if (selectedDate.getTime() !== newTargetDate.getTime()) {
+        setSelectedDate(newTargetDate)
+      }
+      
       setShowCheckout(true)
       setLoading(false)
       return
@@ -217,11 +225,9 @@ export default function Booking({ user }) {
     }
     updateAndLoad()
 
-    // ✅ Supabase subscription with async/await request lock
     const subscription = supabase
       .channel('bookings-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        // ✅ Skip if a fetch is already in flight
         if (isFetchingRef.current) return
 
         if (!loadTimeout) {
@@ -256,17 +262,27 @@ export default function Booking({ user }) {
       return
     }
 
+    // ✅ FIX 3a: Properly toggle off if the user clicks a slot they already selected
+    if (isSlotSelected(slot)) {
+      removeSlot(slot)
+      return
+    }
+
     if (selectedSlots.length === 0) {
       setSelectedSlots([slot])
       return
     }
 
-    const lastSlot = selectedSlots[selectedSlots.length - 1]
-    const isConsecutive = slot.hour === lastSlot.hour + 1
-    const gapSlot = bookingSlots.find(s => s.hour === lastSlot.hour + 1)
-    const isGapAvailable = gapSlot && gapSlot.isAvailable && !gapSlot.isAdminBooking
+    // ✅ FIX 3b: Sort chronologically to find true start and end boundaries
+    const sortedSlots = [...selectedSlots].sort((a, b) => a.hour - b.hour)
+    const firstSlot = sortedSlots[0]
+    const lastSlot = sortedSlots[sortedSlots.length - 1]
 
-    if (isConsecutive && isGapAvailable) {
+    // ✅ FIX 3c: Allow expanding selection backwards OR forwards in time
+    const isConsecutiveForward = slot.hour === lastSlot.hour + 1
+    const isConsecutiveBackward = slot.hour === firstSlot.hour - 1
+
+    if (isConsecutiveForward || isConsecutiveBackward) {
       setSelectedSlots([...selectedSlots, slot])
     } else {
       setSelectedSlots([slot])
