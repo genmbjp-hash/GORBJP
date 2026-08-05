@@ -281,8 +281,9 @@ export default function Booking({ user }) {
         price: 0,
         payment_status: 'free',
         payment_method: 'admin',
-        closure_reason: closureReason || null
+        closure_reason: closureReason || null  // ✅ Reason included
       }))
+      
       const { error } = await supabase.from('bookings').insert(bookingsToInsert)
       if (error) {
         showToast('❌ Gagal menutup slot: ' + error.message, 'error')
@@ -291,12 +292,14 @@ export default function Booking({ user }) {
       showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
       setSelectedSlots([])
       loadBookings()
+      
     } else if (pendingAction === 'closeAll') {
       const customerBookings = bookings.filter(b => b.is_admin_booking === false)
       if (customerBookings.length > 0) {
         const ids = customerBookings.map(b => b.id)
         await supabase.from('bookings').delete().in('id', ids)
       }
+      
       const allSlots = bookingSlots.filter(s => !s.isPast)
       const bookingsToInsert = allSlots.map(slot => ({
         user_id: user.id,
@@ -309,8 +312,9 @@ export default function Booking({ user }) {
         price: 0,
         payment_status: 'free',
         payment_method: 'admin',
-        closure_reason: closureReason || 'Tutup Hari Ini'
+        closure_reason: closureReason || 'Tutup Hari Ini'  // ✅ Reason included
       }))
+      
       const { error } = await supabase.from('bookings').insert(bookingsToInsert)
       if (error) {
         showToast('❌ Gagal menutup hari: ' + error.message, 'error')
