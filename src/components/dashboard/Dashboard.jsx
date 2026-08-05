@@ -154,7 +154,7 @@ export default function Dashboard({ user, profile }) {
     }
   }, [user.id, showToast])
 
-  // ✅ Initial load with cleanup
+  // ✅ Initial load with cleanup - FIXED: empty dependency array
   useEffect(() => {
     let isMounted = true
     let loadTimeout = null
@@ -182,7 +182,7 @@ export default function Dashboard({ user, profile }) {
         clearTimeout(loadTimeout)
       }
     }
-  }, [loadBookings])
+  }, [])  // ✅ Empty array = run once on mount
 
   // ✅ Memoized stats
   const stats = useMemo(() => {
