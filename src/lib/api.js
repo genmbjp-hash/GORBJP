@@ -153,6 +153,12 @@ export async function validateVoucher(code, duration) {
 // ============================================
 
 export async function createBooking(userId, slotData, duration, voucherId) {
+  // ✅ Check if userId is valid
+  if (!userId) {
+    return { error: { message: 'User not authenticated' } }
+  }
+
+  console.log('📤 Creating booking for user:', userId)
   const { date, hour } = slotData
 
   const startDateTime = new Date(date)
