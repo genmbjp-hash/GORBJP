@@ -9,6 +9,42 @@ import CheckoutSheet from '../checkout/CheckoutSheet'
 import PaymentSheet from '../payment/PaymentSheet'
 import Legend from './Legend'
 
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+function getLocalDateString(date) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateDisplay(date) {
+  if (!date) return ''
+  const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
+  return dateObj.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta'
+  })
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta'
+  })
+}
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
 export default function Booking({ user }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -28,6 +64,7 @@ export default function Booking({ user }) {
   const [showReasonModal, setShowReasonModal] = useState(false)
   const [closureReason, setClosureReason] = useState('')
   const [pendingAction, setPendingAction] = useState(null)
+  const [isLoadingDate, setIsLoadingDate] = useState(false)
 
   const OPEN_HOUR = 7
   const CLOSE_HOUR = 23
@@ -40,58 +77,44 @@ export default function Booking({ user }) {
   maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
   maxDate.setHours(0, 0, 0, 0)
 
-  function getLocalDateString(date) {
-  if (!date) return ''
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-  
-  function formatDateDisplay(date) {
-  if (!date) return ''
-  const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
-  return dateObj.toLocaleDateString('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta'
-  })
-}
-  
-  function formatTime(date) {
-    return date.toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Asia/Jakarta'
-    })
-  }
+  // ============================================
+  // DATE HANDLING
+  // ============================================
 
   function handleDateChange(e) {
-  const dateStr = e.target.value
-  if (!dateStr) return
-  const parts = dateStr.split('-')
-  const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
-  setSelectedDate(newDate)
-  setSelectedSlots([])
-}
+    if (isLoadingDate) return
+    
+    const dateStr = e.target.value
+    if (!dateStr) return
+    const parts = dateStr.split('-')
+    const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+    
+    setIsLoadingDate(true)
+    setSelectedSlots([])
+    setSelectedDate(newDate)
+    
+    setTimeout(() => {
+      setIsLoadingDate(false)
+    }, 300)
+  }
+
+  // ============================================
+  // EFFECTS
+  // ============================================
+
   useEffect(() => {
-    // ✅ If there's a pending booking from dashboard, resume it
+    // If there's a pending booking from dashboard, resume it
     if (pendingBookingFromDashboard) {
       setBookingData(pendingBookingFromDashboard)
       setSelectedDate(new Date(pendingBookingFromDashboard.start_time))
-      // Calculate range from the booking
       const startTime = new Date(pendingBookingFromDashboard.start_time)
       const endTime = new Date(pendingBookingFromDashboard.end_time)
       const duration = (endTime - startTime) / (60 * 60 * 1000)
-      // Create a fake range for the checkout
       const fakeRange = {
         start: startTime,
         end: endTime,
         duration: duration
       }
-      // Set range and open checkout
       setShowCheckout(true)
       setLoading(false)
       return
@@ -107,21 +130,48 @@ export default function Booking({ user }) {
     }
     checkAdmin()
     
+    let loadTimeout = null
+    let isMounted = true
+
     const updateAndLoad = async () => {
       await completeExpiredBookings()
-      await loadBookings()
+      if (isMounted) {
+        await loadBookings()
+      }
     }
     updateAndLoad()
 
     const subscription = supabase
       .channel('bookings-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => loadBookings())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        // Throttle subscription reloads
+        if (!loadTimeout) {
+          loadTimeout = setTimeout(() => {
+            if (isMounted) {
+              loadBookings()
+            }
+            loadTimeout = null
+          }, 500)
+        }
+      })
       .subscribe()
 
-    return () => supabase.removeChannel(subscription)
+    return () => {
+      isMounted = false
+      if (loadTimeout) {
+        clearTimeout(loadTimeout)
+      }
+      supabase.removeChannel(subscription)
+    }
   }, [selectedDate, pendingBookingFromDashboard])
 
+  // ============================================
+  // BOOKING FUNCTIONS
+  // ============================================
+
   async function loadBookings() {
+    if (loading) return
+    
     setLoading(true)
     const { data, error } = await getBookingsForDate(selectedDate)
     if (error) {
@@ -174,6 +224,10 @@ export default function Booking({ user }) {
     setBookingSlots(slots)
     setSelectedSlots([])
   }
+
+  // ============================================
+  // SLOT SELECTION
+  // ============================================
 
   function handleSlotClick(slot) {
     if (!slot.isAvailable || slot.isAdminBooking) {
@@ -259,155 +313,165 @@ export default function Booking({ user }) {
   }
 
   // ============================================
-// ADMIN FUNCTIONS
-// ============================================
+  // ADMIN FUNCTIONS
+  // ============================================
 
-function handleAdminClose() {
-  if (selectedSlots.length === 0) {
-    showToast('❌ Pilih slot terlebih dahulu', 'warning')
-    return
-  }
-  setPendingAction('close')
-  setClosureReason('')
-  setShowReasonModal(true)
-}
-
-function handleCloseEntireDay() {
-  if (!window.confirm(`⚠️ PERINGATAN!\n\nAnda akan menutup SEMUA slot untuk hari ini:\n${formatDateDisplay(selectedDate)}\n\nIni akan membatalkan semua booking customer yang sudah ada.\n\nLanjutkan?`)) return
-  setPendingAction('closeAll')
-  setClosureReason('')
-  setShowReasonModal(true)
-}
-
-async function executeAdminAction() {
-  console.log('🔵 executeAdminAction called')
-  console.log('🔵 pendingAction:', pendingAction)
-  console.log('🔵 selectedSlots:', selectedSlots)
-  console.log('🔵 closureReason:', closureReason)
-  
-  setShowReasonModal(false)
-  try {
-    if (pendingAction === 'close') {
-      console.log('🔵 Closing individual slots')
-      
-      const bookingsToInsert = selectedSlots.map(slot => ({
-        user_id: user.id,
-        pin: null,
-        start_time: slot.startTime.toISOString(),
-        end_time: slot.endTime.toISOString(),
-        duration_hours: 1,
-        is_admin_booking: true,
-        status: 'active',
-        price: 0,
-        payment_status: 'free',
-        payment_method: 'admin',
-        closure_reason: closureReason || null
-      }))
-      
-      console.log('🔵 bookingsToInsert:', bookingsToInsert)
-      
-      const { data, error } = await supabase.from('bookings').insert(bookingsToInsert)
-      
-      if (error) {
-        console.error('❌ Insert error:', error)
-        showToast('❌ Gagal menutup slot: ' + error.message, 'error')
-        return
-      }
-      
-      console.log('✅ Insert success:', data)
-      showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
-      setSelectedSlots([])
-      loadBookings()
-      
-    } else if (pendingAction === 'closeAll') {
-      console.log('🔵 Closing entire day')
-      
-      const customerBookings = bookings.filter(b => b.is_admin_booking === false)
-      if (customerBookings.length > 0) {
-        const ids = customerBookings.map(b => b.id)
-        await supabase.from('bookings').delete().in('id', ids)
-      }
-      
-      const allSlots = bookingSlots.filter(s => !s.isPast)
-      const bookingsToInsert = allSlots.map(slot => ({
-        user_id: user.id,
-        pin: null,
-        start_time: slot.startTime.toISOString(),
-        end_time: slot.endTime.toISOString(),
-        duration_hours: 1,
-        is_admin_booking: true,
-        status: 'active',
-        price: 0,
-        payment_status: 'free',
-        payment_method: 'admin',
-        closure_reason: closureReason || 'Tutup Hari Ini'
-      }))
-      
-      console.log('🔵 bookingsToInsert:', bookingsToInsert)
-      
-      const { data, error } = await supabase.from('bookings').insert(bookingsToInsert)
-      
-      if (error) {
-        console.error('❌ Insert error:', error)
-        showToast('❌ Gagal menutup hari: ' + error.message, 'error')
-        return
-      }
-      
-      console.log('✅ Insert success:', data)
-      showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
-      setSelectedSlots([])
-      loadBookings()
-    } else {
-      console.log('🔵 No pending action')
+  function handleAdminClose() {
+    if (selectedSlots.length === 0) {
+      showToast('❌ Pilih slot terlebih dahulu', 'warning')
+      return
     }
-  } catch (error) {
-    console.error('❌ Catch error:', error)
-    showToast('❌ Gagal menjalankan aksi', 'error')
+    setPendingAction('close')
+    setClosureReason('')
+    setShowReasonModal(true)
   }
-  setPendingAction(null)
-  setClosureReason('')
-}
-  
-async function handleAdminReopen(slot) {
-  if (!isAdmin || !slot.isBooked || !slot.isAdminBooking) {
-    showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
-    return
-  }
-  if (!window.confirm(`Apakah Anda yakin ingin membuka slot ini?\n\n${formatDateDisplay(selectedDate)}\n${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`)) return
 
-  const { error } = await supabase.from('bookings').delete().eq('id', slot.bookingId)
-  if (error) {
-    showToast('❌ Gagal membuka slot: ' + error.message, 'error')
-    return
+  function handleCloseEntireDay() {
+    if (!window.confirm(`⚠️ PERINGATAN!\n\nAnda akan menutup SEMUA slot untuk hari ini:\n${formatDateDisplay(selectedDate)}\n\nIni akan membatalkan semua booking customer yang sudah ada.\n\nLanjutkan?`)) return
+    setPendingAction('closeAll')
+    setClosureReason('')
+    setShowReasonModal(true)
   }
-  showToast('✅ Slot dibuka kembali', 'success')
-  loadBookings()
-}
 
-async function handleReopenEntireDay() {
-  if (!isAdmin) return
-  const adminBookings = bookings.filter(b => b.is_admin_booking === true)
-  if (adminBookings.length === 0) {
-    showToast('ℹ️ Tidak ada slot admin untuk dibuka', 'info')
-    return
+  async function executeAdminAction() {
+    console.log('🔵 executeAdminAction called')
+    console.log('🔵 pendingAction:', pendingAction)
+    console.log('🔵 selectedSlots:', selectedSlots)
+    console.log('🔵 closureReason:', closureReason)
+    
+    setShowReasonModal(false)
+    try {
+      if (pendingAction === 'close') {
+        console.log('🔵 Closing individual slots')
+        
+        const bookingsToInsert = selectedSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'active',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || null
+        }))
+        
+        console.log('🔵 bookingsToInsert:', bookingsToInsert)
+        
+        // ✅ FIX: Added .select() to return inserted data
+        const { data, error } = await supabase
+          .from('bookings')
+          .insert(bookingsToInsert)
+          .select()
+        
+        if (error) {
+          console.error('❌ Insert error:', error)
+          showToast('❌ Gagal menutup slot: ' + error.message, 'error')
+          return
+        }
+        
+        console.log('✅ Insert success:', data)
+        showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
+        setSelectedSlots([])
+        loadBookings()
+        
+      } else if (pendingAction === 'closeAll') {
+        console.log('🔵 Closing entire day')
+        
+        const customerBookings = bookings.filter(b => b.is_admin_booking === false)
+        if (customerBookings.length > 0) {
+          const ids = customerBookings.map(b => b.id)
+          await supabase.from('bookings').delete().in('id', ids)
+        }
+        
+        const allSlots = bookingSlots.filter(s => !s.isPast)
+        const bookingsToInsert = allSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'active',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || 'Tutup Hari Ini'
+        }))
+        
+        console.log('🔵 bookingsToInsert:', bookingsToInsert)
+        
+        // ✅ FIX: Added .select() to return inserted data
+        const { data, error } = await supabase
+          .from('bookings')
+          .insert(bookingsToInsert)
+          .select()
+        
+        if (error) {
+          console.error('❌ Insert error:', error)
+          showToast('❌ Gagal menutup hari: ' + error.message, 'error')
+          return
+        }
+        
+        console.log('✅ Insert success:', data)
+        showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
+        setSelectedSlots([])
+        loadBookings()
+      } else {
+        console.log('🔵 No pending action')
+      }
+    } catch (error) {
+      console.error('❌ Catch error:', error)
+      showToast('❌ Gagal menjalankan aksi', 'error')
+    }
+    setPendingAction(null)
+    setClosureReason('')
   }
-  if (!window.confirm(`Apakah Anda yakin ingin membuka SEMUA slot yang ditutup admin?\n\n${formatDateDisplay(selectedDate)}\nJumlah slot: ${adminBookings.length}`)) return
 
-  const ids = adminBookings.map(b => b.id)
-  const { error } = await supabase.from('bookings').delete().in('id', ids)
-  if (error) {
-    showToast('❌ Gagal membuka slot: ' + error.message, 'error')
-    return
+  async function handleAdminReopen(slot) {
+    if (!isAdmin || !slot.isBooked || !slot.isAdminBooking) {
+      showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
+      return
+    }
+    if (!window.confirm(`Apakah Anda yakin ingin membuka slot ini?\n\n${formatDateDisplay(selectedDate)}\n${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`)) return
+
+    const { error } = await supabase.from('bookings').delete().eq('id', slot.bookingId)
+    if (error) {
+      showToast('❌ Gagal membuka slot: ' + error.message, 'error')
+      return
+    }
+    showToast('✅ Slot dibuka kembali', 'success')
+    loadBookings()
   }
-  showToast(`✅ ${ids.length} slot dibuka kembali`, 'success')
-  loadBookings()
-}
-  
+
+  async function handleReopenEntireDay() {
+    if (!isAdmin) return
+    const adminBookings = bookings.filter(b => b.is_admin_booking === true)
+    if (adminBookings.length === 0) {
+      showToast('ℹ️ Tidak ada slot admin untuk dibuka', 'info')
+      return
+    }
+    if (!window.confirm(`Apakah Anda yakin ingin membuka SEMUA slot yang ditutup admin?\n\n${formatDateDisplay(selectedDate)}\nJumlah slot: ${adminBookings.length}`)) return
+
+    const ids = adminBookings.map(b => b.id)
+    const { error } = await supabase.from('bookings').delete().in('id', ids)
+    if (error) {
+      showToast('❌ Gagal membuka slot: ' + error.message, 'error')
+      return
+    }
+    showToast(`✅ ${ids.length} slot dibuka kembali`, 'success')
+    loadBookings()
+  }
+
+  // ============================================
+  // RENDER
+  // ============================================
+
   const range = getSelectedRange()
   const totalPrice = getTotalPrice()
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
-
-  // ✅ For pending booking resume, show a custom checkout header
   const isResuming = pendingBookingFromDashboard && bookingData
 
   return (
@@ -427,7 +491,6 @@ async function handleReopenEntireDay() {
         </div>
       </div>
 
-      {/* ✅ Show resume header if resuming pending booking */}
       {isResuming && (
         <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
           <p style={{ fontSize: '14px', color: '#92400E', margin: 0 }}>
@@ -439,20 +502,21 @@ async function handleReopenEntireDay() {
       {!isResuming && (
         <>
           <div className="card" style={{ marginTop: '16px' }}>
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-    <span style={{ fontWeight: 600, fontSize: '16px' }}>
-      📅 {formatDateDisplay(selectedDate)}
-    </span>
-    <input
-      type="date"
-      value={getLocalDateString(selectedDate)}
-      onChange={handleDateChange}
-      min={getLocalDateString(today)}
-      max={getLocalDateString(maxDate)}
-      className="date-input"
-    />
-  </div>
-</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <span style={{ fontWeight: 600, fontSize: '16px' }}>
+                📅 {formatDateDisplay(selectedDate)}
+              </span>
+              {/* ✅ FIXED: Using getLocalDateString instead of toISOString */}
+              <input
+                type="date"
+                value={getLocalDateString(selectedDate)}
+                onChange={handleDateChange}
+                min={getLocalDateString(today)}
+                max={getLocalDateString(maxDate)}
+                className="date-input"
+              />
+            </div>
+          </div>
 
           {isAdmin && (
             <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
