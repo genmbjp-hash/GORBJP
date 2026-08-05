@@ -1,5 +1,3 @@
-// src/components/dashboard/Dashboard.jsx
-
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -12,10 +10,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const { showToast } = useToast()
-
-  // ✅ Debug: log user state
-  console.log('🔵 Dashboard: user', user?.id)
-  console.log('🔵 Dashboard: profile status', profile?.status)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -161,15 +155,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ✅ Debug version with console log */}
-      <button 
-        onClick={() => {
-          console.log('🔵 Navigate to /booking')
-          navigate('/booking')
-        }} 
-        className="btn btn-primary"
-        style={{ marginBottom: '16px' }}
-      >
+      <button onClick={() => navigate('/booking')} className="btn btn-primary" style={{ marginBottom: '16px' }}>
         📖 Pesan Slot Baru
       </button>
 
