@@ -71,47 +71,63 @@ function App() {
   return (
     <ToastContext.Provider value={showToast}>
       <div className="app">
-        <Routes>
-          <Route path="/" element={
-            user && profile?.status === 'approved' ? (
-              profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-            ) : (
-              <LandingPage user={user} profile={profile} />
-            )
-          } />
-          <Route path="/login" element={
-            user && profile?.status === 'approved' ? (
-              profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-            ) : (
-              <Login />
-            )
-          } />
-          <Route path="/signup" element={
-            user ? <Navigate to="/" /> : <Signup />
-          } />
-          <Route path="/dashboard" element={
-            user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-              <Dashboard />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/booking" element={
-            user && profile?.status === 'approved' ? (
-              <Booking />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/admin" element={
-            user && profile?.role === 'admin' ? (
-              <Admin />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-        </Routes>
 
+<Routes>
+  <Route path="/" element={
+    user && profile?.status === 'approved' ? (
+      profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
+    ) : (
+      <LandingPage user={user} profile={profile} />
+    )
+  } />
+  
+  <Route path="/login" element={
+    user && profile?.status === 'approved' ? (
+      profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
+    ) : (
+      <Login />
+    )
+  } />
+  
+  <Route path="/signup" element={
+    user ? <Navigate to="/" /> : <Signup />
+  } />
+  
+  <Route path="/dashboard" element={
+    user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
+      <Dashboard />
+    ) : (
+      <Navigate to="/" />
+    )
+  } />
+  
+  {/* ✅ FIXED: Booking route */}
+  <Route path="/booking" element={
+    !user ? (
+      <Navigate to="/login" />
+    ) : profile?.status === 'approved' ? (
+      <Booking />
+    ) : profile?.status === 'pending' ? (
+      <div className="container" style={{ paddingTop: '40px' }}>
+        <div className="card">
+          <p>⏳ Akun Anda menunggu persetujuan admin.</p>
+          <button onClick={() => navigate('/')} className="btn btn-primary">Kembali</button>
+        </div>
+      </div>
+    ) : (
+      <Navigate to="/" />
+    )
+  } />
+  
+  <Route path="/admin" element={
+    user && profile?.role === 'admin' ? (
+      <Admin />
+    ) : (
+      <Navigate to="/" />
+    )
+  } />
+</Routes>
+        
         {/* Toast Container */}
         <div className="toast-wrap">
           {toasts.map(toast => (
