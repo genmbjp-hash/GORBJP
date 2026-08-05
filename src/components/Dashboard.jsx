@@ -1,42 +1,34 @@
+// src/components/Dashboard.jsx
+
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPendingBooking } from '../lib/supabase'
-import { useToast } from '../App'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
+import { formatPrice } from '../lib/price'
 
-export default function Dashboard({ user, profile }) {
+export default function Dashboard() {
+  const { user, profile, signOut } = useAuth()
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
-  const showToast = useToast()
+  const { showToast } = useToast()
 
   async function loadBookings() {
     setLoading(true)
-    const { data } = await getUserBookings(user.id)
+    const { data } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('start_time', { ascending: true })
+
     setBookings(data || [])
     setLoading(false)
   }
 
   useEffect(() => {
-    const updateAndLoad = async () => {
-      await completeExpiredBookings()
-      await loadBookings()
-    }
-    updateAndLoad()
-  }, [])
-
-  async function handleCancelPending() {
-    const pendingBooking = bookings.find(b => b.status === 'pending')
-    if (!pendingBooking) return
-    if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
-
-    const { error } = await cancelPendingBooking(pendingBooking.id)
-    if (error) {
-      showToast('❌ Gagal membatalkan: ' + error.message, 'error')
-      return
-    }
-    showToast('✅ Pesanan dibatalkan', 'success')
     loadBookings()
-  }
+  }, [])
 
   async function handleCancel(bookingId) {
     if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
@@ -45,7 +37,6 @@ export default function Dashboard({ user, profile }) {
       .from('bookings')
       .update({ status: 'cancelled' })
       .eq('id', bookingId)
-      .eq('user_id', user.id)
 
     if (error) {
       showToast('❌ Gagal membatalkan: ' + error.message, 'error')
@@ -56,33 +47,18 @@ export default function Dashboard({ user, profile }) {
     loadBookings()
   }
 
-  async function handleLogout() {
-    await signOut()
-    navigate('/login')
-  }
-
-  function formatDate(dateStr) {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
-  }
-
-  function formatTime(dateStr) {
-    const d = new Date(dateStr)
-    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-  }
-
   function getStatusBadge(status) {
     const map = {
       'pending': 'badge-pending',
       'active': 'badge-active',
       'completed': 'badge-completed',
-      'cancelled': 'badge-cancelled'
+      'cancelled': 'badge-cancelled',
     }
     const labels = {
       'pending': '⏳ Menunggu Pembayaran',
       'active': '✅ Aktif',
       'completed': '✔️ Selesai',
-      'cancelled': '❌ Dibatalkan'
+      'cancelled': '❌ Dibatalkan',
     }
     return <span className={`badge ${map[status] || ''}`}>{labels[status] || status}</span>
   }
@@ -107,7 +83,16 @@ export default function Dashboard({ user, profile }) {
   const total = bookings.length
   const active = bookings.filter(b => b.status === 'active').length
   const pending = bookings.filter(b => b.status === 'pending').length
-  const pendingBooking = bookings.find(b => b.status === 'pending')
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
+  function formatTime(dateStr) {
+    const d = new Date(dateStr)
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  }
 
   return (
     <div className="container" style={{ paddingTop: '16px' }}>
@@ -120,14 +105,14 @@ export default function Dashboard({ user, profile }) {
               <span className="logo-sub">Sistem Pemesanan</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+          <button onClick={signOut} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
             Keluar
           </button>
         </div>
       </div>
 
       <div className="card" style={{ background: 'var(--primary)', color: 'white', border: 'none' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 700 }}>👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!</h2>
+        <h2 style={{ fontSize: '20px', fontWeight: 700 }}>👋 Selamat datang, {profile?.display_name || profile?.full_name || 'User'}!</h2>
         <p style={{ fontSize: '14px', opacity: 0.9 }}>Pesan venue dan dapatkan PIN Anda</p>
       </div>
 
@@ -163,78 +148,33 @@ export default function Dashboard({ user, profile }) {
         ) : bookings.length === 0 ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
         ) : (
-          bookings.map(b => {
-            const isPending = b.status === 'pending'
-            const hasVoucher = b.voucher_id && b.discount_applied > 0
-            
-            return (
-              <div key={b.id} className="booking-item" style={{ 
-                borderLeft: isPending ? '4px solid var(--warning)' : '4px solid transparent',
-                paddingLeft: '12px'
-              }}>
-                <div className="booking-info">
-                  <div className="booking-date">{formatDate(b.start_time)}</div>
-                  <div className="booking-time">{formatTime(b.start_time)} - {formatTime(b.end_time)}</div>
-                  <div style={{ marginTop: '4px' }}>
-                    {getStatusBadge(b.status)}
-                    {getPaymentBadge(b.payment_status, b.discount_applied)}
-                    {hasVoucher && b.discount_applied > 0 && (
-                      <span style={{ marginLeft: '4px', fontSize: '11px', color: 'var(--gray-500)' }}>
-                        (Diskon Rp {b.discount_applied.toLocaleString()})
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  {isPending ? (
-                    <div>
-                      <button
-                        onClick={() => navigate('/payment', { 
-                          state: { 
-                            bookingId: b.id,
-                            date: b.start_time.split('T')[0],
-                            slot: {
-                              hour: new Date(b.start_time).getHours(),
-                              startTime: b.start_time,
-                              endTime: b.end_time
-                            },
-                            duration: b.duration_hours,
-                            price: b.price,
-                            originalPrice: b.original_price || b.price,
-                            discountAmount: b.discount_applied || 0
-                          }
-                        })}
-                        className="btn btn-warning btn-sm"
-                        style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
-                      >
-                        💳 Lanjutkan Pembayaran
-                      </button>
-                      <button
-                        onClick={handleCancelPending}
-                        className="btn btn-danger btn-sm"
-                        style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
-                      >
-                        ❌ Batal
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {b.pin && <div className="booking-pin">{b.pin}</div>}
-                      {(b.status === 'active' || b.status === 'pending') && (
-                        <button
-                          onClick={() => handleCancel(b.id)}
-                          className="btn btn-danger btn-sm"
-                          style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
-                        >
-                          Batal
-                        </button>
-                      )}
-                    </div>
-                  )}
+          bookings.map(b => (
+            <div key={b.id} className="booking-item" style={{
+              borderLeft: b.status === 'pending' ? '4px solid var(--warning)' : '4px solid transparent',
+              paddingLeft: '12px'
+            }}>
+              <div className="booking-info">
+                <div className="booking-date">{formatDate(b.start_time)}</div>
+                <div className="booking-time">{formatTime(b.start_time)} - {formatTime(b.end_time)}</div>
+                <div style={{ marginTop: '4px' }}>
+                  {getStatusBadge(b.status)}
+                  {getPaymentBadge(b.payment_status, b.discount_applied)}
                 </div>
               </div>
-            )
-          })
+              <div>
+                <div className="booking-pin">{b.pin || '-'}</div>
+                {(b.status === 'pending' || b.status === 'active') && (
+                  <button
+                    onClick={() => handleCancel(b.id)}
+                    className="btn btn-danger btn-sm"
+                    style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
+                  >
+                    Batal
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
         )}
       </div>
     </div>
