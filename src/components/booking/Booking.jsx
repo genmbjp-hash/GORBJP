@@ -339,41 +339,53 @@ export default function Booking({ user }) {
     
     setShowReasonModal(false)
     try {
-      if (pendingAction === 'close') {
-        console.log('🔵 Closing individual slots')
-        
-        const bookingsToInsert = selectedSlots.map(slot => ({
-          user_id: user.id,
-          pin: null,
-          start_time: slot.startTime.toISOString(),
-          end_time: slot.endTime.toISOString(),
-          duration_hours: 1,
-          is_admin_booking: true,
-          status: 'active',
-          price: 0,
-          payment_status: 'free',
-          payment_method: 'admin',
-          closure_reason: closureReason || null
-        }))
-        
-        console.log('🔵 bookingsToInsert:', bookingsToInsert)
-        
-        const { data, error } = await supabase
-          .from('bookings')
-          .insert(bookingsToInsert)
-          .select()
-        
-        if (error) {
-          console.error('❌ Insert error:', error)
-          showToast('❌ Gagal menutup slot: ' + error.message, 'error')
-          return
-        }
-        
-        console.log('✅ Insert success:', data)
-        showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
-        setSelectedSlots([])
-        loadBookings()
-        
+        if (pendingAction === 'close') {
+  console.log('🔵 Closing individual slots')
+  
+  const bookingsToInsert = selectedSlots.map(slot => ({
+    user_id: user.id,
+    pin: null,
+    start_time: slot.startTime.toISOString(),
+    end_time: slot.endTime.toISOString(),
+    duration_hours: 1,
+    is_admin_booking: true,
+    status: 'active',
+    price: 0,
+    payment_status: 'free',
+    payment_method: 'admin',
+    closure_reason: closureReason || null
+  }))
+  
+  console.log('🔵 bookingsToInsert:', bookingsToInsert)
+  
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert(bookingsToInsert)
+    .select()
+  
+  if (error) {
+    console.error('❌ Insert error:', error)
+    showToast('❌ Gagal menutup slot: ' + error.message, 'error')
+    return
+  }
+  
+  console.log('✅ Insert success:', data)
+  showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
+  setSelectedSlots([])
+  
+  // ✅ Fix: Reload with error handling
+  try {
+    await loadBookings()
+  } catch (reloadError) {
+    console.error('Reload error:', reloadError)
+    // Fallback: manual reload
+    const { data: reloadData } = await getBookingsForDate(selectedDate)
+    if (reloadData) {
+      setBookings(reloadData)
+      generateSlots(reloadData)
+    }
+  }
+}
       } else if (pendingAction === 'closeAll') {
         console.log('🔵 Closing entire day')
         
