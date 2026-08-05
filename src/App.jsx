@@ -6,9 +6,6 @@ import Signup from './components/Signup'
 import Dashboard from './components/dashboard/Dashboard'
 import Booking from './components/booking/Booking'
 import Admin from './components/admin/Admin'
-import Payment from './components/Payment'
-import PaymentSuccess from './components/PaymentSuccess'
-import PaymentFailed from './components/PaymentFailed'
 
 const ToastContext = React.createContext()
 export function useToast() {
@@ -98,27 +95,6 @@ function App() {
           <Route path="/booking" element={
             user && profile?.status === 'approved' ? (
               <Booking user={user} />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/payment" element={
-            user && profile?.status === 'approved' ? (
-              <Payment user={user} />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/payment-success" element={
-            user && profile?.status === 'approved' ? (
-              <PaymentSuccess />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/payment-failed" element={
-            user && profile?.status === 'approved' ? (
-              <PaymentFailed />
             ) : (
               <Navigate to="/" />
             )
