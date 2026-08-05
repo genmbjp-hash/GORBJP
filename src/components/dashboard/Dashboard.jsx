@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
-import { useToast } from '../hooks/useToast' // using usetoast.jsx
-import { formatPrice } from '../lib/price'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../hooks/useAuth'
+import { useToast } from '../../hooks/useToast'
+import { formatPrice } from '../../lib/price'
 
 export default function Dashboard() {
   const { user, profile, signOut } = useAuth()
