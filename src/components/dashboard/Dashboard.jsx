@@ -188,11 +188,11 @@ export default function Dashboard({ user, profile }) {
                   {isPending ? (
                     <div>
                       <button
-                        onClick={() => navigate('/booking')}
+                        onClick={() => navigate('/booking', { state: { pendingBooking: b } })}
                         className="btn btn-warning btn-sm"
                         style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
                       >
-                        📖 Lanjutkan Booking
+                        📖 Lanjutkan Pembayaran
                       </button>
                       <button
                         onClick={handleCancelPending}
