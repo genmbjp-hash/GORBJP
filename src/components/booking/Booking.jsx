@@ -204,7 +204,7 @@ export default function Booking({ user }) {
         range={range}
         totalPrice={totalPrice}
         selectedDate={selectedDate}
-        user={user}
+        user={user || null}
         voucher={voucher}
         onVoucherChange={setVoucher}
         onPayment={() => {
