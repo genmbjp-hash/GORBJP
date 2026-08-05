@@ -97,6 +97,7 @@ function App() {
             )
           } />
           
+          {/* ✅ Booking route — no guard, Booking component handles auth itself */}
           <Route path="/booking" element={<Booking />} />
           
           <Route path="/admin" element={
