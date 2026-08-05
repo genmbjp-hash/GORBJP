@@ -1,5 +1,3 @@
-// src/components/payment/PaymentSheet.jsx
-
 import React from 'react'
 import { formatPrice } from '../../lib/price'
 import { useToast } from '../../hooks/useToast'
