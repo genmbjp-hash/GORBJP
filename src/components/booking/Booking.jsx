@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import { useSlotSelection } from '../../hooks/useSlotSelection'
 import { useToast } from '../../hooks/useToast'
@@ -28,7 +29,18 @@ export default function Booking({ user }) {
 
   const { selectedSlots, toggleSlot, clearSelection, getSelectedRange, isSelected } = useSlotSelection()
   const { showToast } = useToast()
+  const { user } = useAuth()
   const navigate = useNavigate()
+  // ✅ Redirect if no user
+  useEffect(() => {
+    if (!user) {
+      navigate('/login')
+    }
+  }, [user, navigate])
+
+  if (!user) {
+    return null
+  }
 
   const range = getSelectedRange()
   const totalPrice = range ? calculatePrice(range.duration) : 0
