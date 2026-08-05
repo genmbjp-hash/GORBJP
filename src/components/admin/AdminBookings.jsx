@@ -71,4 +71,88 @@ export default function AdminBookings({ bookings, onRefresh }) {
   }
 
   const pendingBookings = bookings.filter(b => b.status === 'pending' && b.payment_status === 'pending')
- 
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title">📋 Semua Pesanan</span>
+      </div>
+
+      {bookings.length === 0 ? (
+        <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Pending Bookings */}
+          {pendingBookings.length > 0 && (
+            <>
+              <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--warning)', marginTop: '8px' }}>
+                ⏳ Menunggu Konfirmasi Pembayaran
+              </h4>
+              {pendingBookings.map(b => (
+                <div key={b.id} className="booking-item" style={{ background: '#FEF3C7', borderRadius: '8px', padding: '12px 16px' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                      {b.profiles?.display_name || b.profiles?.full_name || 'Unknown'}
+                      <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+                      {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                    </div>
+                    <div style={{ marginTop: '4px' }}>
+                      {getStatusBadge(b.status)}
+                      {getPaymentBadge(b.payment_status || 'pending')}
+                      <span style={{ marginLeft: '8px', fontWeight: 600, color: 'var(--primary)' }}>
+                        Rp {b.price?.toLocaleString() || 0}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button onClick={() => handleConfirmPayment(b.id)} className="btn btn-success btn-sm" style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}>
+                      ✅ Confirm Payment
+                    </button>
+                    <button onClick={() => handleCancelBooking(b.id)} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}>
+                      ❌ Cancel
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* All Other Bookings */}
+          <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-500)', marginTop: '8px' }}>
+            📋 Semua Pesanan
+          </h4>
+          {bookings.filter(b => !(b.status === 'pending' && b.payment_status === 'pending')).slice(0, 20).map(b => (
+            <div key={b.id} className="booking-item">
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                  {b.profiles?.display_name || b.profiles?.full_name || 'Unknown'}
+                  <span style={{ fontWeight: 400, color: 'var(--gray-500)', fontSize: '12px' }}> {b.profiles?.email || ''}</span>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+                  {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                </div>
+                <div style={{ marginTop: '4px' }}>
+                  {getStatusBadge(b.status)}
+                  {getPaymentBadge(b.payment_status || 'free')}
+                  {b.voucher_id && <span className="badge" style={{ marginLeft: '4px', background: '#E0E7FF', color: '#3730A3' }}>🎫 Voucher</span>}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>
+                  {b.pin || '-'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {bookings.length > 20 && (
+        <p style={{ textAlign: 'center', fontSize: '14px', color: 'var(--gray-400)', marginTop: '12px' }}>
+          Menampilkan 20 dari {bookings.length} pesanan
+        </p>
+      )}
+    </div>
+  )
+}
