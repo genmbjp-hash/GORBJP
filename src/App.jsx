@@ -1,22 +1,22 @@
-import React, { useEffect, useState, lazy, Suspense, useCallback, useMemo } from 'react'
+import React, { useState, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { supabase, getProfile } from './lib/supabase'
+import { useAuth } from './hooks/useAuth'
 
-// ✅ Lazy load components
+// Lazy load components
 const Login = lazy(() => import('./components/Login'))
 const Signup = lazy(() => import('./components/Signup'))
 const Dashboard = lazy(() => import('./components/dashboard/Dashboard'))
 const Booking = lazy(() => import('./components/booking/Booking'))
 const Admin = lazy(() => import('./components/admin/Admin'))
-const LandingPage = lazy(() => import('./components/LandingPage')) // Move to separate file
+const LandingPage = lazy(() => import('./components/LandingPage'))
 
-// ✅ Toast Context
+// Toast Context
 const ToastContext = React.createContext()
 export function useToast() {
   return React.useContext(ToastContext)
 }
 
-// ✅ Loading Spinner Component
+// Loading Spinner Component
 function LoadingSpinner() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -26,78 +26,20 @@ function LoadingSpinner() {
 }
 
 function App() {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // ✅ Use auth from context (removed local auth state)
+  const { user, profile, loading } = useAuth()
   const [toasts, setToasts] = useState([])
 
-  // ✅ Memoize loadProfile to prevent recreation
-  const loadProfile = useCallback(async (userId) => {
-    try {
-      const { data } = await getProfile(userId)
-      setProfile(data)
-    } catch (error) {
-      console.error('Error loading profile:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // ✅ Handle session and auth state changes
-  useEffect(() => {
-    let isMounted = true
-
-    const initSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (isMounted) {
-          if (session?.user) {
-            setUser(session.user)
-            await loadProfile(session.user.id)
-          } else {
-            setLoading(false)
-          }
-        }
-      } catch (error) {
-        console.error('Session error:', error)
-        if (isMounted) setLoading(false)
-      }
-    }
-
-    initSession()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (isMounted) {
-        if (session?.user) {
-          setUser(session.user)
-          await loadProfile(session.user.id)
-        } else {
-          setUser(null)
-          setProfile(null)
-          setLoading(false)
-        }
-      }
-    })
-
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-    }
-  }, [loadProfile]) // ✅ Added dependency
-
-  // ✅ Memoize showToast to prevent recreation
-  const showToast = useCallback((message, type = 'info') => {
-    const id = Date.now() + Math.random()
+  // ✅ Toast system (kept from original)
+  function showToast(message, type = 'info') {
+    const id = Date.now()
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id))
     }, 4000)
-  }, [])
+  }
 
-  // ✅ Memoize context value
-  const toastContextValue = useMemo(() => showToast, [showToast])
-
-  // ✅ Memoize route protection logic
+  // ✅ Route protection logic
   const isApproved = user && profile?.status === 'approved'
   const isAdmin = isApproved && profile?.role === 'admin'
   const isCustomer = isApproved && profile?.role !== 'admin'
@@ -107,7 +49,7 @@ function App() {
   }
 
   return (
-    <ToastContext.Provider value={toastContextValue}>
+    <ToastContext.Provider value={showToast}>
       <div className="app">
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
