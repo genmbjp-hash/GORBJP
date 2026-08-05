@@ -1,11 +1,10 @@
 // src/components/dashboard/Dashboard.jsx
 
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
-import { formatPrice } from '../../lib/price'
 
 export default function Dashboard() {
   const { user, profile, loading: authLoading, signOut, isAdmin } = useAuth()
@@ -14,14 +13,12 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  // ✅ Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login')
     }
   }, [authLoading, user, navigate])
 
-  // ✅ Redirect to admin if admin
   useEffect(() => {
     if (!authLoading && isAdmin) {
       navigate('/admin')
@@ -30,7 +27,6 @@ export default function Dashboard() {
 
   async function loadBookings() {
     if (!user) return
-    
     setLoading(true)
     const { data } = await supabase
       .from('bookings')
@@ -98,7 +94,6 @@ export default function Dashboard() {
     )
   }
 
-  // ✅ Show loading spinner while auth is loading
   if (authLoading) {
     return (
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -107,7 +102,6 @@ export default function Dashboard() {
     )
   }
 
-  // ✅ If no user after auth loads, redirect
   if (!user) {
     return null
   }
@@ -163,9 +157,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Link to="/booking" className="btn btn-primary" style={{ marginBottom: '16px' }}>
+      {/* ✅ Use navigate instead of Link */}
+      <button 
+        onClick={() => navigate('/booking')} 
+        className="btn btn-primary"
+        style={{ marginBottom: '16px' }}
+      >
         📖 Pesan Slot Baru
-      </Link>
+      </button>
 
       <div className="card">
         <div className="card-header">
