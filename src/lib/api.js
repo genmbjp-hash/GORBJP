@@ -1,6 +1,7 @@
+// src/lib/api.js
+
 import { supabase } from './supabase'
 import { calculatePrice, calculateDiscount } from './price'
-import { getWIBTime, getWIBDateTimeString, getWIBDateRange } from './timezone'
 
 const EDGE_FUNCTION_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
@@ -60,12 +61,16 @@ export async function getVouchers() {
   return data
 }
 
+// ✅ FIXED: Use UTC for database updates
 export async function updateVoucher(voucherId, updates) {
+  const now = new Date()
+  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+
   const { data, error } = await supabase
     .from('vouchers')
     .update({
       ...updates,
-      updated_at: getWIBTime()
+      updated_at: nowUTC.toISOString()
     })
     .eq('id', voucherId)
     .select()
@@ -75,12 +80,16 @@ export async function updateVoucher(voucherId, updates) {
   return data
 }
 
+// ✅ FIXED: Use UTC for database updates
 export async function deactivateVoucher(voucherId) {
+  const now = new Date()
+  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+
   const { data, error } = await supabase
     .from('vouchers')
     .update({ 
       active: false, 
-      updated_at: getWIBTime() 
+      updated_at: nowUTC.toISOString() 
     })
     .eq('id', voucherId)
     .select()
@@ -102,6 +111,7 @@ export async function deleteVoucher(voucherId) {
   return data
 }
 
+// ✅ FIXED: Use UTC for expiry check
 export async function validateVoucher(code, duration) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -116,9 +126,10 @@ export async function validateVoucher(code, duration) {
     return { error: { message: 'Voucher sudah tidak aktif' } }
   }
 
-  // Check expiry in WIB timezone
-  const nowWIB = getWIBTime()
-  if (data.expires_at && new Date(data.expires_at) < new Date(nowWIB)) {
+  // ✅ Use UTC for expiry check
+  const now = new Date()
+  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  if (data.expires_at && new Date(data.expires_at) < nowUTC) {
     return { error: { message: 'Voucher sudah kadaluarsa' } }
   }
 
@@ -137,23 +148,35 @@ export async function validateVoucher(code, duration) {
   return { data, error: null }
 }
 
+// ✅ FIXED: createBooking with UTC
 export async function createBooking(userId, slotData, duration, voucherId) {
   const { date, hour } = slotData
 
-  // Use WIB timezone
-  const startWIB = getWIBDateTimeString(date, hour)
-  const endWIB = getWIBDateTimeString(date, hour + duration)
-  const range = getWIBDateRange(date)
+  // Convert to UTC
+  const startDateTime = new Date(date)
+  startDateTime.setHours(hour, 0, 0, 0)
+  const startUTC = new Date(startDateTime.getTime() - startDateTime.getTimezoneOffset() * 60000)
+  
+  const endDateTime = new Date(startDateTime)
+  endDateTime.setHours(hour + duration, 0, 0, 0)
+  const endUTC = new Date(endDateTime.getTime() - endDateTime.getTimezoneOffset() * 60000)
 
-  // Check for existing bookings using WIB timezone
+  // UTC date range for conflict check
+  const startOfDay = new Date(date)
+  startOfDay.setHours(0, 0, 0, 0)
+  const startOfDayUTC = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000)
+  const endOfDayUTC = new Date(startOfDayUTC)
+  endOfDayUTC.setHours(23, 59, 59, 999)
+
+  // Check for existing bookings
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', range.start)
-    .lte('start_time', range.end)
-    .filter('start_time', 'lt', endWIB)
-    .filter('end_time', 'gt', startWIB)
+    .gte('start_time', startOfDayUTC.toISOString())
+    .lte('start_time', endOfDayUTC.toISOString())
+    .filter('start_time', 'lt', endUTC.toISOString())
+    .filter('end_time', 'gt', startUTC.toISOString())
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -185,14 +208,14 @@ export async function createBooking(userId, slotData, duration, voucherId) {
     }
   }
 
-  // Insert with WIB timezone
+  // ✅ Insert with UTC
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startWIB,
-      end_time: endWIB,
+      start_time: startUTC.toISOString(),
+      end_time: endUTC.toISOString(),
       duration_hours: duration,
       original_price: originalPrice,
       price: finalPrice,
