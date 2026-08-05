@@ -586,28 +586,27 @@ export default function Booking({ user }) {
           )}
 
           <SlotList
-            slots={bookingSlots}
-            isSelected={isSlotSelected}
-            onToggle={handleSlotClick}
-            isAdmin={isAdmin}
-            onAdminClose={handleAdminClose}
-            onAdminToggle={handleAdminSlotToggle}
-          />
+  slots={bookingSlots}
+  isSelected={isSlotSelected}
+  onToggle={handleSlotClick}
+  isAdmin={isAdmin}
+  onAdminClose={handleAdminClose}
+  onAdminToggle={handleAdminSlotToggle}
+/>
 
-          <Legend />
+<Legend />
 
-          {!isAdmin && (
-            <StickyCart
-              range={range}
-              totalPrice={totalPrice}
-              selectedSlots={selectedSlots}
-              onClear={() => setSelectedSlots([])}
-              onCheckout={handleProceedToCheckout}
-              onRemoveSlot={removeSlot}
-              isResuming={isResuming}
-          />
-        </>
-      )}
+{!isAdmin && (
+  <StickyCart
+    range={range}
+    totalPrice={totalPrice}
+    selectedSlots={selectedSlots}
+    onClear={() => setSelectedSlots([])}
+    onCheckout={handleProceedToCheckout}
+    onRemoveSlot={removeSlot}
+    isResuming={isResuming}
+  />
+)}
 
       <CheckoutSheet
         isOpen={showCheckout}
