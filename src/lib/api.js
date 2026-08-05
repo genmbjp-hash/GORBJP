@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { calculatePrice, calculateDiscount } from './price'
+import { getWIBTime, getWIBDateTimeString, getWIBDateRange } from './timezone'
 
 const EDGE_FUNCTION_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
@@ -64,7 +65,7 @@ export async function updateVoucher(voucherId, updates) {
     .from('vouchers')
     .update({
       ...updates,
-      updated_at: new Date().toISOString()
+      updated_at: getWIBTime()
     })
     .eq('id', voucherId)
     .select()
@@ -77,7 +78,10 @@ export async function updateVoucher(voucherId, updates) {
 export async function deactivateVoucher(voucherId) {
   const { data, error } = await supabase
     .from('vouchers')
-    .update({ active: false, updated_at: new Date().toISOString() })
+    .update({ 
+      active: false, 
+      updated_at: getWIBTime() 
+    })
     .eq('id', voucherId)
     .select()
     .single()
@@ -112,7 +116,9 @@ export async function validateVoucher(code, duration) {
     return { error: { message: 'Voucher sudah tidak aktif' } }
   }
 
-  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+  // Check expiry in WIB timezone
+  const nowWIB = getWIBTime()
+  if (data.expires_at && new Date(data.expires_at) < new Date(nowWIB)) {
     return { error: { message: 'Voucher sudah kadaluarsa' } }
   }
 
@@ -134,24 +140,20 @@ export async function validateVoucher(code, duration) {
 export async function createBooking(userId, slotData, duration, voucherId) {
   const { date, hour } = slotData
 
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
+  // Use WIB timezone
+  const startWIB = getWIBDateTimeString(date, hour)
+  const endWIB = getWIBDateTimeString(date, hour + duration)
+  const range = getWIBDateRange(date)
 
-  const startOfDay = new Date(date)
-  startOfDay.setHours(0, 0, 0, 0)
-  const endOfDay = new Date(date)
-  endOfDay.setHours(23, 59, 59, 999)
-
+  // Check for existing bookings using WIB timezone
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDay.toISOString())
-    .lte('start_time', endOfDay.toISOString())
-    .filter('start_time', 'lt', endDateTime.toISOString())
-    .filter('end_time', 'gt', startDateTime.toISOString())
+    .gte('start_time', range.start)
+    .lte('start_time', range.end)
+    .filter('start_time', 'lt', endWIB)
+    .filter('end_time', 'gt', startWIB)
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -183,13 +185,14 @@ export async function createBooking(userId, slotData, duration, voucherId) {
     }
   }
 
+  // Insert with WIB timezone
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
+      start_time: startWIB,
+      end_time: endWIB,
       duration_hours: duration,
       original_price: originalPrice,
       price: finalPrice,
