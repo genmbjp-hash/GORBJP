@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase, getProfile } from './lib/supabase'
 import Login from './components/Login'
 import Signup from './components/Signup'
@@ -17,7 +17,6 @@ function App() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toasts, setToasts] = useState([])
-  const navigate = useNavigate()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -76,7 +75,6 @@ function App() {
               <LandingPage user={user} profile={profile} />
             )
           } />
-          
           <Route path="/login" element={
             user && profile?.status === 'approved' ? (
               profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
@@ -84,11 +82,9 @@ function App() {
               <Login />
             )
           } />
-          
           <Route path="/signup" element={
             user ? <Navigate to="/" /> : <Signup />
           } />
-          
           <Route path="/dashboard" element={
             user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
               <Dashboard />
@@ -96,10 +92,7 @@ function App() {
               <Navigate to="/" />
             )
           } />
-          
-          {/* ✅ Booking route — no guard, Booking component handles auth itself */}
           <Route path="/booking" element={<Booking />} />
-          
           <Route path="/admin" element={
             user && profile?.role === 'admin' ? (
               <Admin />
