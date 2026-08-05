@@ -1,4 +1,4 @@
-// src/components/Dashboard.jsx
+// src/components/dashboard/Dashboard.jsx
 
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -8,13 +8,29 @@ import { useToast } from '../../hooks/useToast'
 import { formatPrice } from '../../lib/price'
 
 export default function Dashboard() {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, loading: authLoading, signOut, isAdmin } = useAuth()
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const { showToast } = useToast()
 
+  // ✅ Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login')
+    }
+  }, [authLoading, user, navigate])
+
+  // ✅ Redirect to admin if admin
+  useEffect(() => {
+    if (!authLoading && isAdmin) {
+      navigate('/admin')
+    }
+  }, [authLoading, isAdmin, navigate])
+
   async function loadBookings() {
+    if (!user) return
+    
     setLoading(true)
     const { data } = await supabase
       .from('bookings')
@@ -27,8 +43,10 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    loadBookings()
-  }, [])
+    if (user) {
+      loadBookings()
+    }
+  }, [user])
 
   async function handleCancel(bookingId) {
     if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
@@ -78,6 +96,20 @@ export default function Dashboard() {
         {style.label}
       </span>
     )
+  }
+
+  // ✅ Show loading spinner while auth is loading
+  if (authLoading) {
+    return (
+      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div className="spinner"></div>
+      </div>
+    )
+  }
+
+  // ✅ If no user after auth loads, redirect
+  if (!user) {
+    return null
   }
 
   const total = bookings.length
