@@ -70,20 +70,18 @@ export async function getProfile(userId) {
 // ============================================
 
 export async function getBookingsForDate(dateObj) {
-  // ✅ Use UTC for database queries
-  const startDate = new Date(dateObj)
-  startDate.setHours(0, 0, 0, 0)
-  const startUTC = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000)
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getDate()).padStart(2, '0')
   
-  const endDate = new Date(dateObj)
-  endDate.setHours(23, 59, 59, 999)
-  const endUTC = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000)
+  const startWIB = `${year}-${month}-${day} 00:00:00+07:00`
+  const endWIB = `${year}-${month}-${day} 23:59:59+07:00`
 
   const { data, error } = await supabase
     .from('bookings')
     .select('*, profiles(full_name, display_name)')
-    .gte('start_time', startUTC.toISOString())
-    .lte('start_time', endUTC.toISOString())
+    .gte('start_time', startWIB)
+    .lte('start_time', endWIB)
     .in('status', ['pending', 'active', 'completed'])
 
   return { data, error }
@@ -107,20 +105,22 @@ export async function getUserBookings(userId) {
 }
 
 export async function completeExpiredBookings() {
-  // ✅ Use UTC for database queries
   const now = new Date()
-  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  
+  const nowWIB = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}+07:00`
   
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'completed' })
     .in('status', ['pending', 'active'])
-    .lt('end_time', nowUTC.toISOString())
+    .lt('end_time', nowWIB)
     .select()
-
-  if (data && data.length > 0) {
-    console.log(`✅ ${data.length} expired bookings completed`)
-  }
 
   return { data, error }
 }
@@ -128,28 +128,25 @@ export async function completeExpiredBookings() {
 export async function createBookingWithCheckout(userId, slotData, duration) {
   const { date, hour } = slotData
 
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  const startUTC = new Date(startDateTime.getTime() - startDateTime.getTimezoneOffset() * 60000)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(hour).padStart(2, '0')
+  const endHour = String(hour + duration).padStart(2, '0')
   
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
-  const endUTC = new Date(endDateTime.getTime() - endDateTime.getTimezoneOffset() * 60000)
-
-  const startOfDay = new Date(date)
-  startOfDay.setHours(0, 0, 0, 0)
-  const startOfDayUTC = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000)
-  const endOfDayUTC = new Date(startOfDayUTC)
-  endOfDayUTC.setHours(23, 59, 59, 999)
+  const startWIB = `${year}-${month}-${day} ${hours}:00:00+07:00`
+  const endWIB = `${year}-${month}-${day} ${endHour}:00:00+07:00`
+  const startOfDayWIB = `${year}-${month}-${day} 00:00:00+07:00`
+  const endOfDayWIB = `${year}-${month}-${day} 23:59:59+07:00`
 
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDayUTC.toISOString())
-    .lte('start_time', endOfDayUTC.toISOString())
-    .filter('start_time', 'lt', endUTC.toISOString())
-    .filter('end_time', 'gt', startUTC.toISOString())
+    .gte('start_time', startOfDayWIB)
+    .lte('start_time', endOfDayWIB)
+    .filter('start_time', 'lt', endWIB)
+    .filter('end_time', 'gt', startWIB)
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -163,8 +160,8 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startUTC.toISOString(),
-      end_time: endUTC.toISOString(),
+      start_time: startWIB,
+      end_time: endWIB,
       duration_hours: duration,
       price: price,
       original_price: price,
@@ -211,28 +208,25 @@ export async function cancelBooking(bookingId, userId) {
 export async function createPendingBooking(userId, slotData, duration, price) {
   const { date, hour } = slotData
 
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  const startUTC = new Date(startDateTime.getTime() - startDateTime.getTimezoneOffset() * 60000)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(hour).padStart(2, '0')
+  const endHour = String(hour + duration).padStart(2, '0')
   
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
-  const endUTC = new Date(endDateTime.getTime() - endDateTime.getTimezoneOffset() * 60000)
-
-  const startOfDay = new Date(date)
-  startOfDay.setHours(0, 0, 0, 0)
-  const startOfDayUTC = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000)
-  const endOfDayUTC = new Date(startOfDayUTC)
-  endOfDayUTC.setHours(23, 59, 59, 999)
+  const startWIB = `${year}-${month}-${day} ${hours}:00:00+07:00`
+  const endWIB = `${year}-${month}-${day} ${endHour}:00:00+07:00`
+  const startOfDayWIB = `${year}-${month}-${day} 00:00:00+07:00`
+  const endOfDayWIB = `${year}-${month}-${day} 23:59:59+07:00`
 
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDayUTC.toISOString())
-    .lte('start_time', endOfDayUTC.toISOString())
-    .filter('start_time', 'lt', endUTC.toISOString())
-    .filter('end_time', 'gt', startUTC.toISOString())
+    .gte('start_time', startOfDayWIB)
+    .lte('start_time', endOfDayWIB)
+    .filter('start_time', 'lt', endWIB)
+    .filter('end_time', 'gt', startWIB)
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -244,8 +238,8 @@ export async function createPendingBooking(userId, slotData, duration, price) {
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startUTC.toISOString(),
-      end_time: endUTC.toISOString(),
+      start_time: startWIB,
+      end_time: endWIB,
       duration_hours: duration,
       price: price,
       original_price: price,
