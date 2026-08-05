@@ -3,9 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase, getProfile } from './lib/supabase'
 import Login from './components/Login'
 import Signup from './components/Signup'
-import Dashboard from './components/dashboard/Dashboard'
-import Booking from './components/booking/Booking'
-import Admin from './components/admin/Admin'
+import Dashboard from './components/Dashboard'
+import Booking from './components/Booking'
+import Admin from './components/Admin'
+import Payment from './components/Payment'
+import PaymentSuccess from './components/PaymentSuccess'
+import PaymentFailed from './components/PaymentFailed'
 
 const ToastContext = React.createContext()
 export function useToast() {
@@ -92,7 +95,34 @@ function App() {
               <Navigate to="/" />
             )
           } />
-          <Route path="/booking" element={<Booking />} />
+          <Route path="/booking" element={
+            user && profile?.status === 'approved' ? (
+              <Booking />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
+          <Route path="/payment" element={
+            user && profile?.status === 'approved' ? (
+              <Payment />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
+          <Route path="/payment-success" element={
+            user && profile?.status === 'approved' ? (
+              <PaymentSuccess />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
+          <Route path="/payment-failed" element={
+            user && profile?.status === 'approved' ? (
+              <PaymentFailed />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
           <Route path="/admin" element={
             user && profile?.role === 'admin' ? (
               <Admin />
