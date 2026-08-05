@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase, getBookingsForDate, completeExpiredBookings } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
@@ -48,7 +48,11 @@ function formatTime(date) {
 export default function Booking({ user }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const showToast = useToast()
+  const toast = useToast()
+  const showToast = toast || ((message, type = 'info') => {
+    console.log(`[Toast] ${type}: ${message}`)
+    alert(message)
+  })
   const pendingBookingFromDashboard = location.state?.pendingBooking || null
 
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -99,93 +103,57 @@ export default function Booking({ user }) {
   }
 
   // ============================================
-  // EFFECTS
-  // ============================================
-
-  useEffect(() => {
-    // If there's a pending booking from dashboard, resume it
-    if (pendingBookingFromDashboard) {
-      setBookingData(pendingBookingFromDashboard)
-      setSelectedDate(new Date(pendingBookingFromDashboard.start_time))
-      const startTime = new Date(pendingBookingFromDashboard.start_time)
-      const endTime = new Date(pendingBookingFromDashboard.end_time)
-      const duration = (endTime - startTime) / (60 * 60 * 1000)
-      const fakeRange = {
-        start: startTime,
-        end: endTime,
-        duration: duration
-      }
-      setShowCheckout(true)
-      setLoading(false)
-      return
-    }
-
-    const checkAdmin = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-      setIsAdmin(data?.role === 'admin')
-    }
-    checkAdmin()
-    
-    let loadTimeout = null
-    let isMounted = true
-
-    const updateAndLoad = async () => {
-      await completeExpiredBookings()
-      if (isMounted) {
-        await loadBookings()
-      }
-    }
-    updateAndLoad()
-
-    const subscription = supabase
-      .channel('bookings-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        // Throttle subscription reloads
-        if (!loadTimeout) {
-          loadTimeout = setTimeout(() => {
-            if (isMounted) {
-              loadBookings()
-            }
-            loadTimeout = null
-          }, 500)
-        }
-      })
-      .subscribe()
-
-    return () => {
-      isMounted = false
-      if (loadTimeout) {
-        clearTimeout(loadTimeout)
-      }
-      supabase.removeChannel(subscription)
-    }
-  }, [selectedDate, pendingBookingFromDashboard])
-
-  // ============================================
   // BOOKING FUNCTIONS
   // ============================================
 
-  async function loadBookings() {
+  const loadBookings = useCallback(async () => {
+    console.log('🔵 loadBookings STARTED')
+    console.log('🔵 selectedDate:', selectedDate)
+    console.log('🔵 selectedDate.toISOString():', selectedDate.toISOString())
+    
     setLoading(true)
-    const { data, error } = await getBookingsForDate(selectedDate)
-    if (error) {
-      showToast('❌ Gagal memuat booking: ' + error.message, 'error')
+    try {
+      console.log('🔵 Calling getBookingsForDate...')
+      const { data, error } = await getBookingsForDate(selectedDate)
+      console.log('🔵 getBookingsForDate result:', { 
+        dataCount: data?.length || 0, 
+        error: error?.message || null 
+      })
+      
+      if (error) {
+        console.log('🔵 ERROR in getBookingsForDate:', error)
+        showToast('❌ Gagal memuat booking: ' + error.message, 'error')
+        setLoading(false)
+        return
+      }
+      
+      console.log('🔵 Setting bookings:', data?.length || 0, 'bookings')
+      setBookings(data || [])
+      
+      console.log('🔵 Calling generateSlots with', data?.length || 0, 'bookings')
+      generateSlots(data || [])
+      
+      console.log('🔵 loadBookings FINISHED')
+    } catch (error) {
+      console.error('🔵 loadBookings CATCH ERROR:', error)
+      showToast('❌ Gagal memuat booking', 'error')
+    } finally {
       setLoading(false)
-      return
+      console.log('🔵 loadBookings finally done, loading set to false')
     }
-    setBookings(data || [])
-    generateSlots(data || [])
-    setLoading(false)
-  }
+  }, [selectedDate, showToast])
 
   function generateSlots(existingBookings) {
+    console.log('🔵 generateSlots called with:', existingBookings?.length || 0, 'bookings')
+    console.log('🔵 generateSlots - existingBookings:', existingBookings)
+    
     const slots = []
     const now = new Date()
     const isToday = selectedDate.toDateString() === new Date().toDateString()
+    
+    console.log('🔵 generateSlots - now:', now)
+    console.log('🔵 generateSlots - isToday:', isToday)
+    console.log('🔵 generateSlots - OPEN_HOUR:', OPEN_HOUR, 'CLOSE_HOUR:', CLOSE_HOUR)
 
     for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
       const startTime = new Date(selectedDate)
@@ -219,9 +187,92 @@ export default function Booking({ user }) {
       })
     }
 
+    console.log('🔵 generateSlots created:', slots.length, 'slots')
+    console.log('🔵 generateSlots - available slots:', slots.filter(s => s.isAvailable).length)
+    console.log('🔵 generateSlots - past slots:', slots.filter(s => s.isPast).length)
+    console.log('🔵 generateSlots - booked slots:', slots.filter(s => s.isBooked).length)
+    
     setBookingSlots(slots)
     setSelectedSlots([])
+    console.log('🔵 generateSlots DONE - bookingSlots updated')
   }
+
+  // ============================================
+  // EFFECTS
+  // ============================================
+
+  useEffect(() => {
+    console.log('🔵 useEffect triggered - selectedDate:', selectedDate)
+    console.log('🔵 useEffect - pendingBookingFromDashboard:', pendingBookingFromDashboard)
+    
+    // If there's a pending booking from dashboard, resume it
+    if (pendingBookingFromDashboard) {
+      console.log('🔵 Resuming pending booking')
+      setBookingData(pendingBookingFromDashboard)
+      setSelectedDate(new Date(pendingBookingFromDashboard.start_time))
+      const startTime = new Date(pendingBookingFromDashboard.start_time)
+      const endTime = new Date(pendingBookingFromDashboard.end_time)
+      const duration = (endTime - startTime) / (60 * 60 * 1000)
+      const fakeRange = {
+        start: startTime,
+        end: endTime,
+        duration: duration
+      }
+      setShowCheckout(true)
+      setLoading(false)
+      return
+    }
+
+    const checkAdmin = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      setIsAdmin(data?.role === 'admin')
+      console.log('🔵 isAdmin:', data?.role === 'admin')
+    }
+    checkAdmin()
+    
+    let loadTimeout = null
+    let isMounted = true
+
+    const updateAndLoad = async () => {
+      console.log('🔵 updateAndLoad - completing expired bookings')
+      await completeExpiredBookings()
+      console.log('🔵 updateAndLoad - calling loadBookings')
+      if (isMounted) {
+        await loadBookings()
+      }
+    }
+    updateAndLoad()
+
+    console.log('🔵 Setting up Supabase subscription')
+    const subscription = supabase
+      .channel('bookings-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        console.log('🔵 Supabase subscription triggered - booking change detected')
+        if (!loadTimeout) {
+          loadTimeout = setTimeout(() => {
+            console.log('🔵 Subscription reload - calling loadBookings')
+            if (isMounted) {
+              loadBookings()
+            }
+            loadTimeout = null
+          }, 500)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      console.log('🔵 Cleaning up useEffect')
+      isMounted = false
+      if (loadTimeout) {
+        clearTimeout(loadTimeout)
+      }
+      supabase.removeChannel(subscription)
+    }
+  }, [selectedDate, pendingBookingFromDashboard, loadBookings, user.id])
 
   // ============================================
   // SLOT SELECTION
@@ -332,124 +383,106 @@ export default function Booking({ user }) {
   }
 
   async function executeAdminAction() {
-  console.log('🔵 executeAdminAction called')
-  console.log('🔵 pendingAction:', pendingAction)
-  console.log('🔵 selectedSlots:', selectedSlots)
-  console.log('🔵 closureReason:', closureReason)
-  
-  setShowReasonModal(false)
-  
-  try {
-    if (pendingAction === 'close') {
-      console.log('🔵 Closing individual slots')
-      
-      const bookingsToInsert = selectedSlots.map(slot => ({
-        user_id: user.id,
-        pin: null,
-        start_time: slot.startTime.toISOString(),
-        end_time: slot.endTime.toISOString(),
-        duration_hours: 1,
-        is_admin_booking: true,
-        status: 'active',
-        price: 0,
-        payment_status: 'free',
-        payment_method: 'admin',
-        closure_reason: closureReason || null
-      }))
-      
-      console.log('🔵 bookingsToInsert:', bookingsToInsert)
-      
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert(bookingsToInsert)
-        .select()
-      
-      if (error) {
-        console.error('❌ Insert error:', error)
-        showToast('❌ Gagal menutup slot: ' + error.message, 'error')
-        return
-      }
-      
-      console.log('✅ Insert success:', data)
-      showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
-      setSelectedSlots([])
-      
-      try {
-        await loadBookings()
-      } catch (reloadError) {
-        console.error('Reload error:', reloadError)
-        const { data: reloadData } = await getBookingsForDate(selectedDate)
-        if (reloadData) {
-          setBookings(reloadData)
-          generateSlots(reloadData)
-        }
-      }
-      
-    } else if (pendingAction === 'closeAll') {
-      console.log('🔵 Closing entire day')
-      
-      const customerBookings = bookings.filter(b => b.is_admin_booking === false)
-      if (customerBookings.length > 0) {
-        const ids = customerBookings.map(b => b.id)
-        await supabase.from('bookings').delete().in('id', ids)
-      }
-      
-      const allSlots = bookingSlots.filter(s => !s.isPast)
-      const bookingsToInsert = allSlots.map(slot => ({
-        user_id: user.id,
-        pin: null,
-        start_time: slot.startTime.toISOString(),
-        end_time: slot.endTime.toISOString(),
-        duration_hours: 1,
-        is_admin_booking: true,
-        status: 'active',
-        price: 0,
-        payment_status: 'free',
-        payment_method: 'admin',
-        closure_reason: closureReason || 'Tutup Hari Ini'
-      }))
-      
-      console.log('🔵 bookingsToInsert:', bookingsToInsert)
-      
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert(bookingsToInsert)
-        .select()
-      
-      if (error) {
-        console.error('❌ Insert error:', error)
-        showToast('❌ Gagal menutup hari: ' + error.message, 'error')
-        return
-      }
-      
-      console.log('✅ Insert success:', data)
-      showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
-      setSelectedSlots([])
-      
-      try {
-        await loadBookings()
-      } catch (reloadError) {
-        console.error('Reload error:', reloadError)
-        const { data: reloadData } = await getBookingsForDate(selectedDate)
-        if (reloadData) {
-          setBookings(reloadData)
-          generateSlots(reloadData)
-        }
-      }
-      
-    } else {
-      console.log('🔵 No pending action')
-    }
+    console.log('🔵 executeAdminAction called')
+    console.log('🔵 pendingAction:', pendingAction)
+    console.log('🔵 selectedSlots:', selectedSlots)
+    console.log('🔵 closureReason:', closureReason)
     
-  } catch (error) {
-    console.error('❌ Catch error:', error)
-    showToast('❌ Gagal menjalankan aksi', 'error')
+    setShowReasonModal(false)
+    try {
+      if (pendingAction === 'close') {
+        console.log('🔵 Closing individual slots')
+        
+        const bookingsToInsert = selectedSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'active',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || null
+        }))
+        
+        console.log('🔵 bookingsToInsert:', bookingsToInsert)
+        
+        const { data, error } = await supabase
+          .from('bookings')
+          .insert(bookingsToInsert)
+          .select()
+        
+        if (error) {
+          console.error('❌ Insert error:', error)
+          showToast('❌ Gagal menutup slot: ' + error.message, 'error')
+          return
+        }
+        
+        console.log('✅ Insert success:', data)
+        console.log('🔵 About to call loadBookings from executeAdminAction')
+        showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
+        setSelectedSlots([])
+        await loadBookings()
+        console.log('🔵 loadBookings completed from executeAdminAction')
+        
+      } else if (pendingAction === 'closeAll') {
+        console.log('🔵 Closing entire day')
+        
+        const customerBookings = bookings.filter(b => b.is_admin_booking === false)
+        if (customerBookings.length > 0) {
+          const ids = customerBookings.map(b => b.id)
+          console.log('🔵 Deleting customer bookings:', ids)
+          await supabase.from('bookings').delete().in('id', ids)
+        }
+        
+        const allSlots = bookingSlots.filter(s => !s.isPast)
+        const bookingsToInsert = allSlots.map(slot => ({
+          user_id: user.id,
+          pin: null,
+          start_time: slot.startTime.toISOString(),
+          end_time: slot.endTime.toISOString(),
+          duration_hours: 1,
+          is_admin_booking: true,
+          status: 'active',
+          price: 0,
+          payment_status: 'free',
+          payment_method: 'admin',
+          closure_reason: closureReason || 'Tutup Hari Ini'
+        }))
+        
+        console.log('🔵 bookingsToInsert:', bookingsToInsert)
+        
+        const { data, error } = await supabase
+          .from('bookings')
+          .insert(bookingsToInsert)
+          .select()
+        
+        if (error) {
+          console.error('❌ Insert error:', error)
+          showToast('❌ Gagal menutup hari: ' + error.message, 'error')
+          return
+        }
+        
+        console.log('✅ Insert success:', data)
+        console.log('🔵 About to call loadBookings from executeAdminAction (closeAll)')
+        showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
+        setSelectedSlots([])
+        await loadBookings()
+        console.log('🔵 loadBookings completed from executeAdminAction (closeAll)')
+        
+      } else {
+        console.log('🔵 No pending action')
+      }
+    } catch (error) {
+      console.error('❌ Catch error:', error)
+      showToast('❌ Gagal menjalankan aksi', 'error')
+    }
+    setPendingAction(null)
+    setClosureReason('')
   }
-  
-  setPendingAction(null)
-  setClosureReason('')
-}
-  
+
   async function handleAdminReopen(slot) {
     if (!isAdmin || !slot.isBooked || !slot.isAdminBooking) {
       showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
@@ -463,7 +496,7 @@ export default function Booking({ user }) {
       return
     }
     showToast('✅ Slot dibuka kembali', 'success')
-    loadBookings()
+    await loadBookings()
   }
 
   async function handleReopenEntireDay() {
@@ -482,7 +515,7 @@ export default function Booking({ user }) {
       return
     }
     showToast(`✅ ${ids.length} slot dibuka kembali`, 'success')
-    loadBookings()
+    await loadBookings()
   }
 
   // ============================================
