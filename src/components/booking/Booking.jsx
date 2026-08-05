@@ -36,20 +36,15 @@ export default function Booking() {
   const range = getSelectedRange()
   const totalPrice = range ? calculatePrice(range.duration) : 0
 
-  // ✅ Redirect if no user
+  // ✅ Simple: just check user, no complex redirect
   useEffect(() => {
     if (!user) {
       navigate('/login')
+      return
     }
-  }, [user, navigate])
-
-  // ✅ Load slots when date changes
-  useEffect(() => {
-    if (user) {
-      loadSlots()
-      checkAdmin()
-    }
-  }, [selectedDate, user])
+    loadSlots()
+    checkAdmin()
+  }, [selectedDate])
 
   async function checkAdmin() {
     if (!user) return
@@ -134,7 +129,7 @@ export default function Booking() {
     setShowCheckout(true)
   }
 
-  // ✅ Show loading while user is being checked
+  // ✅ If no user, show loading (not null)
   if (!user) {
     return (
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
