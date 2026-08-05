@@ -7,7 +7,6 @@ import Dashboard from './components/dashboard/Dashboard'
 import Booking from './components/booking/Booking'
 import Admin from './components/admin/Admin'
 
-// Toast context
 const ToastContext = React.createContext()
 export function useToast() {
   return React.useContext(ToastContext)
@@ -21,7 +20,6 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
@@ -31,7 +29,6 @@ function App() {
       }
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user)
@@ -71,51 +68,46 @@ function App() {
   return (
     <ToastContext.Provider value={showToast}>
       <div className="app">
+        <Routes>
+          <Route path="/" element={
+            user && profile?.status === 'approved' ? (
+              profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
+            ) : (
+              <LandingPage user={user} profile={profile} />
+            )
+          } />
+          
+          <Route path="/login" element={
+            user && profile?.status === 'approved' ? (
+              profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
+            ) : (
+              <Login />
+            )
+          } />
+          
+          <Route path="/signup" element={
+            user ? <Navigate to="/" /> : <Signup />
+          } />
+          
+          <Route path="/dashboard" element={
+            user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
+              <Dashboard />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
+          
+          <Route path="/booking" element={<Booking />} />
+          
+          <Route path="/admin" element={
+            user && profile?.role === 'admin' ? (
+              <Admin />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
+        </Routes>
 
-<// src/App.jsx — Routes section (temporary)
-
-<Routes>
-  <Route path="/" element={
-    user && profile?.status === 'approved' ? (
-      profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-    ) : (
-      <LandingPage user={user} profile={profile} />
-    )
-  } />
-  
-  <Route path="/login" element={
-    user && profile?.status === 'approved' ? (
-      profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-    ) : (
-      <Login />
-    )
-  } />
-  
-  <Route path="/signup" element={
-    user ? <Navigate to="/" /> : <Signup />
-  } />
-  
-  <Route path="/dashboard" element={
-    user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-      <Dashboard />
-    ) : (
-      <Navigate to="/" />
-    )
-  } />
-  
-  {/* ✅ TEMPORARY: No guard */}
-  <Route path="/booking" element={<Booking />} />
-  
-  <Route path="/admin" element={
-    user && profile?.role === 'admin' ? (
-      <Admin />
-    ) : (
-      <Navigate to="/" />
-    )
-  } />
-</Routes>
-        
-        {/* Toast Container */}
         <div className="toast-wrap">
           {toasts.map(toast => (
             <div key={toast.id} className={`toast ${toast.type}`}>
@@ -128,7 +120,6 @@ function App() {
   )
 }
 
-// ===== LANDING PAGE COMPONENT =====
 function LandingPage({ user, profile }) {
   return (
     <div className="container" style={{ paddingTop: '40px' }}>
