@@ -6,10 +6,10 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
 import { confirmPayment, approveUser, generateMasterPin, forceLamp } from '../../lib/api'
-import AdminUsers from './admin/AdminUsers'
-import AdminVouchers from './admin/AdminVouchers'
-import AdminBookings from './admin/AdminBookings'
-import AdminMasterPin from './admin/AdminMasterPin'
+import AdminUsers from './AdminUsers'
+import AdminVouchers from './AdminVouchers'
+import AdminBookings from './AdminBookings'
+import AdminMasterPin from './AdminMasterPin'
 
 export default function Admin() {
   const { user, isAdmin, signOut } = useAuth()
