@@ -1,15 +1,28 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, lazy, Suspense, useCallback, useMemo } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase, getProfile } from './lib/supabase'
-import Login from './components/Login'
-import Signup from './components/Signup'
-import Dashboard from './components/dashboard/Dashboard'
-import Booking from './components/booking/Booking'
-import Admin from './components/admin/Admin'
 
+// ✅ Lazy load components
+const Login = lazy(() => import('./components/Login'))
+const Signup = lazy(() => import('./components/Signup'))
+const Dashboard = lazy(() => import('./components/dashboard/Dashboard'))
+const Booking = lazy(() => import('./components/booking/Booking'))
+const Admin = lazy(() => import('./components/admin/Admin'))
+const LandingPage = lazy(() => import('./components/LandingPage')) // Move to separate file
+
+// ✅ Toast Context
 const ToastContext = React.createContext()
 export function useToast() {
   return React.useContext(ToastContext)
+}
+
+// ✅ Loading Spinner Component
+function LoadingSpinner() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div className="spinner"></div>
+    </div>
+  )
 }
 
 function App() {
@@ -18,95 +31,126 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [toasts, setToasts] = useState([])
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        loadProfile(session.user.id)
-      } else {
-        setLoading(false)
-      }
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-        loadProfile(session.user.id)
-      } else {
-        setUser(null)
-        setProfile(null)
-        setLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+  // ✅ Memoize loadProfile to prevent recreation
+  const loadProfile = useCallback(async (userId) => {
+    try {
+      const { data } = await getProfile(userId)
+      setProfile(data)
+    } catch (error) {
+      console.error('Error loading profile:', error)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  async function loadProfile(userId) {
-    const { data } = await getProfile(userId)
-    setProfile(data)
-    setLoading(false)
-  }
+  // ✅ Handle session and auth state changes
+  useEffect(() => {
+    let isMounted = true
 
-  function showToast(message, type = 'info') {
-    const id = Date.now()
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (isMounted) {
+          if (session?.user) {
+            setUser(session.user)
+            await loadProfile(session.user.id)
+          } else {
+            setLoading(false)
+          }
+        }
+      } catch (error) {
+        console.error('Session error:', error)
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    initSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (isMounted) {
+        if (session?.user) {
+          setUser(session.user)
+          await loadProfile(session.user.id)
+        } else {
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+        }
+      }
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [loadProfile]) // ✅ Added dependency
+
+  // ✅ Memoize showToast to prevent recreation
+  const showToast = useCallback((message, type = 'info') => {
+    const id = Date.now() + Math.random()
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id))
     }, 4000)
-  }
+  }, [])
+
+  // ✅ Memoize context value
+  const toastContextValue = useMemo(() => showToast, [showToast])
+
+  // ✅ Memoize route protection logic
+  const isApproved = user && profile?.status === 'approved'
+  const isAdmin = isApproved && profile?.role === 'admin'
+  const isCustomer = isApproved && profile?.role !== 'admin'
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <div className="spinner"></div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   return (
-    <ToastContext.Provider value={showToast}>
+    <ToastContext.Provider value={toastContextValue}>
       <div className="app">
-        <Routes>
-          <Route path="/" element={
-            user && profile?.status === 'approved' ? (
-              profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-            ) : (
-              <LandingPage user={user} profile={profile} />
-            )
-          } />
-          <Route path="/login" element={
-            user && profile?.status === 'approved' ? (
-              profile?.role === 'admin' ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-            ) : (
-              <Login />
-            )
-          } />
-          <Route path="/signup" element={
-            user ? <Navigate to="/" /> : <Signup />
-          } />
-          <Route path="/dashboard" element={
-            user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-              <Dashboard user={user} profile={profile} />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/booking" element={
-            user && profile?.status === 'approved' ? (
-              <Booking user={user} />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-          <Route path="/admin" element={
-            user && profile?.role === 'admin' ? (
-              <Admin user={user} />
-            ) : (
-              <Navigate to="/" />
-            )
-          } />
-        </Routes>
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+            <Route path="/" element={
+              isApproved ? (
+                isAdmin ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
+              ) : (
+                <LandingPage user={user} profile={profile} />
+              )
+            } />
+            <Route path="/login" element={
+              isApproved ? (
+                isAdmin ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
+              ) : (
+                <Login />
+              )
+            } />
+            <Route path="/signup" element={
+              user ? <Navigate to="/" /> : <Signup />
+            } />
+            <Route path="/dashboard" element={
+              isCustomer ? (
+                <Dashboard user={user} profile={profile} />
+              ) : (
+                <Navigate to="/" />
+              )
+            } />
+            <Route path="/booking" element={
+              isApproved ? (
+                <Booking user={user} />
+              ) : (
+                <Navigate to="/" />
+              )
+            } />
+            <Route path="/admin" element={
+              isAdmin ? (
+                <Admin user={user} />
+              ) : (
+                <Navigate to="/" />
+              )
+            } />
+          </Routes>
+        </Suspense>
 
         <div className="toast-wrap">
           {toasts.map(toast => (
@@ -117,57 +161,6 @@ function App() {
         </div>
       </div>
     </ToastContext.Provider>
-  )
-}
-
-function LandingPage({ user, profile }) {
-  return (
-    <div className="container" style={{ paddingTop: '40px' }}>
-      <div className="card" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', color: 'white', border: 'none', textAlign: 'center', padding: '40px 24px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '8px' }}>🏛️ Gedung Serbaguna BJP</h1>
-        <p style={{ fontSize: '16px', opacity: 0.9 }}>Sewa venue dengan mudah, dapatkan PIN akses</p>
-        <p style={{ fontSize: '14px', opacity: 0.7 }}>Book venue easily, get your access PIN</p>
-      </div>
-
-      <div className="card">
-        <h3 style={{ fontSize: '18px', fontWeight: 700, textAlign: 'center', color: 'var(--primary)', marginBottom: '16px' }}>📋 Cara Kerja</h3>
-        <div className="how-it-works">
-          <div className="hiw-step">
-            <div className="hiw-number">1</div>
-            <div className="hiw-text">Daftar & Tunggu Approval</div>
-          </div>
-          <div className="hiw-step">
-            <div className="hiw-number">2</div>
-            <div className="hiw-text">Pilih Tanggal & Waktu</div>
-          </div>
-          <div className="hiw-step">
-            <div className="hiw-number">3</div>
-            <div className="hiw-text">Dapatkan PIN & Masuk</div>
-          </div>
-        </div>
-      </div>
-
-      {user && profile?.status === 'pending' && (
-        <div className="alert alert-warning">
-          ⏳ Akun Anda menunggu persetujuan admin. Silakan tunggu.
-        </div>
-      )}
-
-      {user && profile?.status === 'rejected' && (
-        <div className="alert alert-error">
-          ❌ Akun Anda ditolak. Hubungi admin.
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
-        <a href="/login" className="btn btn-primary">🔐 Masuk</a>
-        <a href="/signup" className="btn btn-secondary">📝 Daftar</a>
-      </div>
-
-      <div style={{ textAlign: 'center', padding: '24px 0 16px', fontSize: '12px', color: 'var(--gray-400)' }}>
-        © 2026 Gedung Serbaguna BJP
-      </div>
-    </div>
   )
 }
 
