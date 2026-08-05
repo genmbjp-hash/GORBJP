@@ -12,10 +12,14 @@ export function useAuth() {
   useEffect(() => {
     const loadUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
+      
       if (session?.user) {
         setUser(session.user)
         await loadProfile(session.user.id)
       } else {
+        setUser(null)
+        setProfile(null)
+        setIsAdmin(false)
         setLoading(false)
       }
     }
@@ -38,11 +42,17 @@ export function useAuth() {
   }, [])
 
   const loadProfile = async (userId) => {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+    
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
+    
     setProfile(data)
     setIsAdmin(data?.role === 'admin')
     setLoading(false)
