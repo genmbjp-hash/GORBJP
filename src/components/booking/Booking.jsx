@@ -149,31 +149,29 @@ export default function Booking({ user }) {
       return
     }
 
-    // ✅ Unlimited slots — allow any number of consecutive slots
+    if (selectedSlots.length === 0) {
+      setSelectedSlots([slot])
+      return
+    }
+
     const lastSlot = selectedSlots[selectedSlots.length - 1]
-    if (selectedSlots.length > 0) {
-      const isConsecutive = slot.hour === lastSlot.hour + 1
-      const gapSlot = bookingSlots.find(s => s.hour === lastSlot.hour + 1)
-      const isGapAvailable = gapSlot && gapSlot.isAvailable && !gapSlot.isAdminBooking
-      if (isConsecutive && isGapAvailable) {
-        setSelectedSlots([...selectedSlots, slot])
-      } else {
-        setSelectedSlots([slot])
-      }
+    const isConsecutive = slot.hour === lastSlot.hour + 1
+    const gapSlot = bookingSlots.find(s => s.hour === lastSlot.hour + 1)
+    const isGapAvailable = gapSlot && gapSlot.isAvailable && !gapSlot.isAdminBooking
+
+    if (isConsecutive && isGapAvailable) {
+      setSelectedSlots([...selectedSlots, slot])
     } else {
       setSelectedSlots([slot])
     }
   }
 
-  function handleAdminSlotToggle(slot) {
-    if (!isAdmin || slot.isBooked) return
+  function removeSlot(slot) {
     const index = selectedSlots.findIndex(s => s.hour === slot.hour)
     if (index >= 0) {
       const newSelected = [...selectedSlots]
       newSelected.splice(index, 1)
       setSelectedSlots(newSelected)
-    } else {
-      setSelectedSlots([...selectedSlots, slot].sort((a, b) => a.hour - b.hour))
     }
   }
 
@@ -182,7 +180,7 @@ export default function Booking({ user }) {
   }
 
   function getSelectedDuration() {
-    return selectedSlots.length * SLOT_DURATION
+    return selectedSlots.length
   }
 
   function getSelectedRange() {
@@ -191,7 +189,7 @@ export default function Booking({ user }) {
     return {
       start: sorted[0].startTime,
       end: sorted[sorted.length - 1].endTime,
-      duration: sorted.length * SLOT_DURATION,
+      duration: sorted.length,
       hours: sorted.map(s => s.hour)
     }
   }
@@ -206,7 +204,6 @@ export default function Booking({ user }) {
       showToast('❌ Pilih slot terlebih dahulu', 'warning')
       return
     }
-    // Check if slots are consecutive
     const sorted = [...selectedSlots].sort((a, b) => a.hour - b.hour)
     for (let i = 0; i < sorted.length - 1; i++) {
       if (sorted[i + 1].hour !== sorted[i].hour + 1) {
@@ -215,6 +212,18 @@ export default function Booking({ user }) {
       }
     }
     setShowCheckout(true)
+  }
+
+  function handleAdminSlotToggle(slot) {
+    if (!isAdmin || slot.isBooked) return
+    const index = selectedSlots.findIndex(s => s.hour === slot.hour)
+    if (index >= 0) {
+      const newSelected = [...selectedSlots]
+      newSelected.splice(index, 1)
+      setSelectedSlots(newSelected)
+    } else {
+      setSelectedSlots([...selectedSlots, slot].sort((a, b) => a.hour - b.hour))
+    }
   }
 
   function handleAdminClose() {
@@ -438,7 +447,7 @@ export default function Booking({ user }) {
 
       <SlotList
         slots={bookingSlots}
-        isSelected={isSelected}
+        isSelected={isSlotSelected}
         onToggle={handleSlotClick}
         isAdmin={isAdmin}
         onAdminClose={handleAdminClose}
@@ -453,14 +462,7 @@ export default function Booking({ user }) {
         selectedSlots={selectedSlots}
         onClear={() => setSelectedSlots([])}
         onCheckout={handleProceedToCheckout}
-        onRemoveSlot={(slot) => {
-          const index = selectedSlots.findIndex(s => s.hour === slot.hour)
-          if (index >= 0) {
-            const newSelected = [...selectedSlots]
-            newSelected.splice(index, 1)
-            setSelectedSlots(newSelected)
-          }
-        }}
+        onRemoveSlot={removeSlot}
       />
 
       <CheckoutSheet
