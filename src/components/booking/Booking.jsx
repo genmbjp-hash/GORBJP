@@ -596,14 +596,15 @@ export default function Booking({ user }) {
 
           <Legend />
 
-          <StickyCart
-            range={range}
-            totalPrice={totalPrice}
-            selectedSlots={selectedSlots}
-            onClear={() => setSelectedSlots([])}
-            onCheckout={handleProceedToCheckout}
-            onRemoveSlot={removeSlot}
-            isResuming={isResuming}
+          {!isAdmin && (
+            <StickyCart
+              range={range}
+              totalPrice={totalPrice}
+              selectedSlots={selectedSlots}
+              onClear={() => setSelectedSlots([])}
+              onCheckout={handleProceedToCheckout}
+              onRemoveSlot={removeSlot}
+              isResuming={isResuming}
           />
         </>
       )}
