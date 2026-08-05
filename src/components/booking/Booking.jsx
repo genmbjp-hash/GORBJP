@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../hooks/useAuth'
 import { useSlotSelection } from '../../hooks/useSlotSelection'
 import { useToast } from '../../hooks/useToast'
 import { calculatePrice, formatPrice } from '../../lib/price'
@@ -17,7 +17,11 @@ const OPEN_HOUR = 7
 const CLOSE_HOUR = 23
 const MAX_DAYS_AHEAD = 14
 
-export default function Booking({ user }) {
+export default function Booking() {
+  // ✅ Get user from useAuth (not from props)
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [bookingSlots, setBookingSlots] = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,8 +33,7 @@ export default function Booking({ user }) {
 
   const { selectedSlots, toggleSlot, clearSelection, getSelectedRange, isSelected } = useSlotSelection()
   const { showToast } = useToast()
-  const { user } = useAuth()
-  const navigate = useNavigate()
+
   // ✅ Redirect if no user
   useEffect(() => {
     if (!user) {
@@ -38,14 +41,12 @@ export default function Booking({ user }) {
     }
   }, [user, navigate])
 
-  if (!user) {
-    return null
-  }
-
   const range = getSelectedRange()
   const totalPrice = range ? calculatePrice(range.duration) : 0
 
   useEffect(() => {
+    if (!user) return
+
     const checkAdmin = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -56,7 +57,7 @@ export default function Booking({ user }) {
     }
     checkAdmin()
     loadSlots()
-  }, [selectedDate])
+  }, [selectedDate, user])
 
   async function loadSlots() {
     setLoading(true)
@@ -129,6 +130,10 @@ export default function Booking({ user }) {
       return
     }
     setShowCheckout(true)
+  }
+
+  if (!user) {
+    return null
   }
 
   const todayStr = new Date().toISOString().split('T')[0]
@@ -216,7 +221,7 @@ export default function Booking({ user }) {
         range={range}
         totalPrice={totalPrice}
         selectedDate={selectedDate}
-        user={user || null}
+        user={user}
         voucher={voucher}
         onVoucherChange={setVoucher}
         onPayment={() => {
