@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { getWIBDateRange, getWIBTime } from './timezone'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -68,16 +69,13 @@ export async function getProfile(userId) {
 // ============================================
 
 export async function getBookingsForDate(dateObj) {
-  const startDate = new Date(dateObj)
-  startDate.setHours(0, 0, 0, 0)
-  const endDate = new Date(dateObj)
-  endDate.setHours(23, 59, 59, 999)
-
+  const range = getWIBDateRange(dateObj)
+  
   const { data, error } = await supabase
     .from('bookings')
     .select('*, profiles(full_name, display_name)')
-    .gte('start_time', startDate.toISOString())
-    .lte('start_time', endDate.toISOString())
+    .gte('start_time', range.start)
+    .lte('start_time', range.end)
     .in('status', ['pending', 'active', 'completed'])
 
   return { data, error }
@@ -101,7 +99,7 @@ export async function getUserBookings(userId) {
 }
 
 export async function completeExpiredBookings() {
-  const now = new Date().toISOString()
+  const now = getWIBTime()
   
   const { data, error } = await supabase
     .from('bookings')
