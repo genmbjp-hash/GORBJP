@@ -40,6 +40,14 @@ export default function Booking({ user }) {
   maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD)
   maxDate.setHours(0, 0, 0, 0)
 
+  function getLocalDateString(date) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+  
   function formatDateDisplay(date) {
   if (!date) return ''
   const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
@@ -431,20 +439,20 @@ async function handleReopenEntireDay() {
       {!isResuming && (
         <>
           <div className="card" style={{ marginTop: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-              <span style={{ fontWeight: 600, fontSize: '16px' }}>
-                📅 {formatDateDisplay(selectedDate)}
-              </span>
-              <input
-  type="date"
-  value={selectedDate.toISOString().split('T')[0]}
-  onChange={handleDateChange}
-  min={today.toISOString().split('T')[0]}
-  max={maxDate.toISOString().split('T')[0]}
-  className="date-input"
-/>
-            </div>
-          </div>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+    <span style={{ fontWeight: 600, fontSize: '16px' }}>
+      📅 {formatDateDisplay(selectedDate)}
+    </span>
+    <input
+      type="date"
+      value={getLocalDateString(selectedDate)}
+      onChange={handleDateChange}
+      min={getLocalDateString(today)}
+      max={getLocalDateString(maxDate)}
+      className="date-input"
+    />
+  </div>
+</div>
 
           {isAdmin && (
             <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
