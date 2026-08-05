@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { supabase, getProfile } from '../lib/supabase'
+import { supabase, getProfile } from '../../lib/supabase'
 import Login from './Login'
 import Signup from './Signup'
 import Dashboard from './dashboard/Dashboard'
