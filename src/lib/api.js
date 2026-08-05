@@ -1,6 +1,7 @@
 // src/lib/api.js
 
 import { supabase } from './supabase'
+import { calculatePrice, calculateDiscount } from './price'
 
 const EDGE_FUNCTION_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
@@ -33,44 +34,87 @@ async function callEdgeFunction(functionName, body) {
   return result
 }
 
-/**
- * Admin: Confirm payment
- */
+// ============================================
+// EDGE FUNCTION CALLS
+// ============================================
+
 export async function confirmPayment(bookingId) {
   return callEdgeFunction('confirm-payment', { bookingId })
 }
 
-/**
- * Admin: Approve or reject user
- */
 export async function approveUser(userId, action) {
   return callEdgeFunction('approve-user', { userId, action })
 }
 
-/**
- * Admin: Create voucher
- */
 export async function createVoucher(voucherData) {
   return callEdgeFunction('create-voucher', voucherData)
 }
 
-/**
- * Admin: Generate master PIN
- */
 export async function generateMasterPin(durationMinutes, purpose) {
   return callEdgeFunction('generate-master-pin', { duration_minutes: durationMinutes, purpose })
 }
 
-/**
- * Admin: Force lamp ON/OFF
- */
 export async function forceLamp(state) {
   return callEdgeFunction('force-lamp', { state })
 }
 
-/**
- * Validate voucher (client-side check, server will re-validate)
- */
+// ============================================
+// DIRECT SUPABASE CALLS (for voucher management)
+// ============================================
+
+export async function getVouchers() {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*, profiles(full_name, display_name)')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export async function updateVoucher(voucherId, updates) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', voucherId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deactivateVoucher(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .update({ active: false, updated_at: new Date().toISOString() })
+    .eq('id', voucherId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteVoucher(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .delete()
+    .eq('id', voucherId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ============================================
+// VOUCHER VALIDATION
+// ============================================
+
 export async function validateVoucher(code, duration) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -104,13 +148,13 @@ export async function validateVoucher(code, duration) {
   return { data, error: null }
 }
 
-/**
- * Create booking
- */
+// ============================================
+// CREATE BOOKING
+// ============================================
+
 export async function createBooking(userId, slotData, duration, voucherId) {
   const { date, hour } = slotData
 
-  // Validate slot availability first
   const startDateTime = new Date(date)
   startDateTime.setHours(hour, 0, 0, 0)
   const endDateTime = new Date(startDateTime)
@@ -181,7 +225,6 @@ export async function createBooking(userId, slotData, duration, voucherId) {
 
   if (error) return { error }
 
-  // If voucher was used, increment usage atomically (already handled by DB function)
   if (voucherIdToUse) {
     await supabase.rpc('increment_voucher_usage', { voucher_id: voucherIdToUse })
     await supabase.from('voucher_usage').insert({
