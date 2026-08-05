@@ -1,5 +1,3 @@
-// src/components/booking/Booking.jsx
-
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -36,7 +34,6 @@ export default function Booking() {
   const range = getSelectedRange()
   const totalPrice = range ? calculatePrice(range.duration) : 0
 
-  // ✅ Simple: just check user, no complex redirect
   useEffect(() => {
     if (!user) {
       navigate('/login')
@@ -129,7 +126,6 @@ export default function Booking() {
     setShowCheckout(true)
   }
 
-  // ✅ If no user, show loading (not null)
   if (!user) {
     return (
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -143,7 +139,6 @@ export default function Booking() {
 
   return (
     <div className="container" style={{ paddingTop: '16px', paddingBottom: '140px' }}>
-      {/* Header */}
       <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
         <div className="header-content" style={{ padding: 0 }}>
           <div className="logo">
@@ -159,7 +154,6 @@ export default function Booking() {
         </div>
       </div>
 
-      {/* Date Picker */}
       <div className="card" style={{ marginTop: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <span style={{ fontWeight: 600, fontSize: '16px' }}>
@@ -176,7 +170,6 @@ export default function Booking() {
         </div>
       </div>
 
-      {/* Admin Mode Badge */}
       {isAdmin && (
         <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
           <p style={{ fontSize: '14px', color: '#92400E', margin: 0 }}>
@@ -185,7 +178,6 @@ export default function Booking() {
         </div>
       )}
 
-      {/* Slot List */}
       <div className="card">
         <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>
           📋 Pilih Jam Sewa
@@ -206,7 +198,6 @@ export default function Booking() {
         </p>
       </div>
 
-      {/* Sticky Cart */}
       <StickyCart
         range={range}
         totalPrice={totalPrice}
@@ -216,7 +207,6 @@ export default function Booking() {
         onRemoveSlot={toggleSlot}
       />
 
-      {/* Checkout Sheet */}
       <CheckoutSheet
         isOpen={showCheckout}
         onClose={() => setShowCheckout(false)}
@@ -236,7 +226,6 @@ export default function Booking() {
         }}
       />
 
-      {/* Payment Sheet */}
       <PaymentSheet
         isOpen={showPayment}
         onClose={() => setShowPayment(false)}
