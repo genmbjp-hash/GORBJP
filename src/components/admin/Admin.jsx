@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
-import { useToast } from '../hooks/useToast'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../hooks/useAuth'
+import { useToast } from '../../hooks/useToast'
 import { confirmPayment, approveUser, generateMasterPin, forceLamp } from '../lib/api'
 import AdminUsers from './admin/AdminUsers'
 import AdminVouchers from './admin/AdminVouchers'
