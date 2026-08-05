@@ -18,9 +18,9 @@ const CLOSE_HOUR = 23
 const MAX_DAYS_AHEAD = 14
 
 export default function Booking() {
-  // ✅ Get user from useAuth (not from props)
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [bookingSlots, setBookingSlots] = useState([])
@@ -32,7 +32,9 @@ export default function Booking() {
   const [voucher, setVoucher] = useState(null)
 
   const { selectedSlots, toggleSlot, clearSelection, getSelectedRange, isSelected } = useSlotSelection()
-  const { showToast } = useToast()
+
+  const range = getSelectedRange()
+  const totalPrice = range ? calculatePrice(range.duration) : 0
 
   // ✅ Redirect if no user
   useEffect(() => {
@@ -41,23 +43,23 @@ export default function Booking() {
     }
   }, [user, navigate])
 
-  const range = getSelectedRange()
-  const totalPrice = range ? calculatePrice(range.duration) : 0
-
+  // ✅ Load slots when date changes
   useEffect(() => {
-    if (!user) return
-
-    const checkAdmin = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-      setIsAdmin(data?.role === 'admin')
+    if (user) {
+      loadSlots()
+      checkAdmin()
     }
-    checkAdmin()
-    loadSlots()
   }, [selectedDate, user])
+
+  async function checkAdmin() {
+    if (!user) return
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    setIsAdmin(data?.role === 'admin')
+  }
 
   async function loadSlots() {
     setLoading(true)
@@ -132,8 +134,13 @@ export default function Booking() {
     setShowCheckout(true)
   }
 
+  // ✅ Show loading while user is being checked
   if (!user) {
-    return null
+    return (
+      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div className="spinner"></div>
+      </div>
+    )
   }
 
   const todayStr = new Date().toISOString().split('T')[0]
