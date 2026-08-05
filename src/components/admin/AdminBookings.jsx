@@ -47,6 +47,19 @@ export default function AdminBookings({ bookings, onRefresh }) {
     return <span className="badge" style={{ marginLeft: '4px', background: style.bg, color: style.color }}>{style.label}</span>
   }
 
+  function getPriceDisplay(booking) {
+    if (booking.is_admin_booking) {
+      return '🔒 Tutup Admin'
+    }
+    if (booking.payment_status === 'free') {
+      return '🆓 GRATIS'
+    }
+    if (booking.price === 0 || booking.price === null) {
+      return '🆓 GRATIS'
+    }
+    return `Rp ${booking.price?.toLocaleString() || 0}`
+  }
+
   async function handleConfirmPayment(bookingId) {
     if (!confirm('Konfirmasi pembayaran untuk booking ini?')) return
 
@@ -101,8 +114,13 @@ export default function AdminBookings({ bookings, onRefresh }) {
                     <div style={{ marginTop: '4px' }}>
                       {getStatusBadge(b.status)}
                       {getPaymentBadge(b.payment_status || 'pending')}
-                      <span style={{ marginLeft: '8px', fontWeight: 600, color: 'var(--primary)' }}>
-                        Rp {b.price?.toLocaleString() || 0}
+                      {b.closure_reason && (
+                        <span className="badge" style={{ marginLeft: '4px', background: '#FEE2E2', color: '#991B1B' }}>
+                          📝 {b.closure_reason}
+                        </span>
+                      )}
+                      <span style={{ marginLeft: '8px', fontWeight: 600, color: b.is_admin_booking ? 'var(--gray-500)' : 'var(--primary)' }}>
+                        {getPriceDisplay(b)}
                       </span>
                     </div>
                   </div>
@@ -137,6 +155,14 @@ export default function AdminBookings({ bookings, onRefresh }) {
                   {getStatusBadge(b.status)}
                   {getPaymentBadge(b.payment_status || 'free')}
                   {b.voucher_id && <span className="badge" style={{ marginLeft: '4px', background: '#E0E7FF', color: '#3730A3' }}>🎫 Voucher</span>}
+                  {b.closure_reason && (
+                    <span className="badge" style={{ marginLeft: '4px', background: '#FEE2E2', color: '#991B1B' }}>
+                      📝 {b.closure_reason}
+                    </span>
+                  )}
+                  <span style={{ marginLeft: '8px', fontWeight: 600, color: b.is_admin_booking ? 'var(--gray-500)' : 'var(--primary)' }}>
+                    {getPriceDisplay(b)}
+                  </span>
                 </div>
               </div>
               <div>
