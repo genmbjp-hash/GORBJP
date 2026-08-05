@@ -1,5 +1,6 @@
+// src/lib/supabase.js
+
 import { createClient } from '@supabase/supabase-js'
-import { getWIBDateRange, getWIBTime } from './timezone'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -69,13 +70,20 @@ export async function getProfile(userId) {
 // ============================================
 
 export async function getBookingsForDate(dateObj) {
-  const range = getWIBDateRange(dateObj)
+  // ✅ Use UTC for database queries
+  const startDate = new Date(dateObj)
+  startDate.setHours(0, 0, 0, 0)
+  const startUTC = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000)
   
+  const endDate = new Date(dateObj)
+  endDate.setHours(23, 59, 59, 999)
+  const endUTC = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000)
+
   const { data, error } = await supabase
     .from('bookings')
     .select('*, profiles(full_name, display_name)')
-    .gte('start_time', range.start)
-    .lte('start_time', range.end)
+    .gte('start_time', startUTC.toISOString())
+    .lte('start_time', endUTC.toISOString())
     .in('status', ['pending', 'active', 'completed'])
 
   return { data, error }
@@ -99,13 +107,15 @@ export async function getUserBookings(userId) {
 }
 
 export async function completeExpiredBookings() {
-  const now = getWIBTime()
+  // ✅ Use UTC for database queries
+  const now = new Date()
+  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
   
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'completed' })
     .in('status', ['pending', 'active'])
-    .lt('end_time', now)
+    .lt('end_time', nowUTC.toISOString())
     .select()
 
   if (data && data.length > 0) {
@@ -120,22 +130,26 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
 
   const startDateTime = new Date(date)
   startDateTime.setHours(hour, 0, 0, 0)
+  const startUTC = new Date(startDateTime.getTime() - startDateTime.getTimezoneOffset() * 60000)
+  
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
+  const endUTC = new Date(endDateTime.getTime() - endDateTime.getTimezoneOffset() * 60000)
 
   const startOfDay = new Date(date)
   startOfDay.setHours(0, 0, 0, 0)
-  const endOfDay = new Date(date)
-  endOfDay.setHours(23, 59, 59, 999)
+  const startOfDayUTC = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000)
+  const endOfDayUTC = new Date(startOfDayUTC)
+  endOfDayUTC.setHours(23, 59, 59, 999)
 
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDay.toISOString())
-    .lte('start_time', endOfDay.toISOString())
-    .filter('start_time', 'lt', endDateTime.toISOString())
-    .filter('end_time', 'gt', startDateTime.toISOString())
+    .gte('start_time', startOfDayUTC.toISOString())
+    .lte('start_time', endOfDayUTC.toISOString())
+    .filter('start_time', 'lt', endUTC.toISOString())
+    .filter('end_time', 'gt', startUTC.toISOString())
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -149,8 +163,8 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
+      start_time: startUTC.toISOString(),
+      end_time: endUTC.toISOString(),
       duration_hours: duration,
       price: price,
       original_price: price,
@@ -199,22 +213,26 @@ export async function createPendingBooking(userId, slotData, duration, price) {
 
   const startDateTime = new Date(date)
   startDateTime.setHours(hour, 0, 0, 0)
+  const startUTC = new Date(startDateTime.getTime() - startDateTime.getTimezoneOffset() * 60000)
+  
   const endDateTime = new Date(startDateTime)
   endDateTime.setHours(hour + duration, 0, 0, 0)
+  const endUTC = new Date(endDateTime.getTime() - endDateTime.getTimezoneOffset() * 60000)
 
   const startOfDay = new Date(date)
   startOfDay.setHours(0, 0, 0, 0)
-  const endOfDay = new Date(date)
-  endOfDay.setHours(23, 59, 59, 999)
+  const startOfDayUTC = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000)
+  const endOfDayUTC = new Date(startOfDayUTC)
+  endOfDayUTC.setHours(23, 59, 59, 999)
 
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDay.toISOString())
-    .lte('start_time', endOfDay.toISOString())
-    .filter('start_time', 'lt', endDateTime.toISOString())
-    .filter('end_time', 'gt', startDateTime.toISOString())
+    .gte('start_time', startOfDayUTC.toISOString())
+    .lte('start_time', endOfDayUTC.toISOString())
+    .filter('start_time', 'lt', endUTC.toISOString())
+    .filter('end_time', 'gt', startUTC.toISOString())
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -226,8 +244,8 @@ export async function createPendingBooking(userId, slotData, duration, price) {
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
+      start_time: startUTC.toISOString(),
+      end_time: endUTC.toISOString(),
       duration_hours: duration,
       price: price,
       original_price: price,
