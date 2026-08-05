@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase, getBookingsForDate, completeExpiredBookings } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
@@ -49,10 +49,16 @@ export default function Booking({ user }) {
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
-  const showToast = toast || ((message, type = 'info') => {
-    console.log(`[Toast] ${type}: ${message}`)
-    alert(message)
-  })
+  
+  const showToast = useCallback((message, type = 'info') => {
+    if (toast) {
+      toast(message, type)
+    } else {
+      console.log(`[Toast] ${type}: ${message}`)
+      alert(message)
+    }
+  }, [toast])
+
   const pendingBookingFromDashboard = location.state?.pendingBooking || null
 
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -70,6 +76,10 @@ export default function Booking({ user }) {
   const [pendingAction, setPendingAction] = useState(null)
   const [isLoadingDate, setIsLoadingDate] = useState(false)
 
+  // ✅ Refs for request locking
+  const isFetchingRef = useRef(false)
+  const isMountedRef = useRef(true)
+
   const OPEN_HOUR = 7
   const CLOSE_HOUR = 23
   const MAX_DAYS_AHEAD = 14
@@ -82,55 +92,16 @@ export default function Booking({ user }) {
   maxDate.setHours(0, 0, 0, 0)
 
   // ============================================
-  // DATE HANDLING
+  // GENERATE SLOTS
   // ============================================
 
-  function handleDateChange(e) {
-    if (isLoadingDate) return
-    
-    const dateStr = e.target.value
-    if (!dateStr) return
-    const parts = dateStr.split('-')
-    const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
-    
-    setIsLoadingDate(true)
-    setSelectedSlots([])
-    setSelectedDate(newDate)
-    
-    setTimeout(() => {
-      setIsLoadingDate(false)
-    }, 300)
-  }
-
-  // ============================================
-  // BOOKING FUNCTIONS
-  // ============================================
-
-  const loadBookings = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data, error } = await getBookingsForDate(selectedDate)
-      if (error) {
-        showToast('❌ Gagal memuat booking: ' + error.message, 'error')
-        setLoading(false)
-        return
-      }
-      setBookings(data || [])
-      generateSlots(data || [])
-    } catch (error) {
-      showToast('❌ Gagal memuat booking', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedDate, showToast])
-
-  function generateSlots(existingBookings) {
+  const generateSlots = useCallback((existingBookings, targetDate) => {
     const slots = []
     const now = new Date()
-    const isToday = selectedDate.toDateString() === new Date().toDateString()
+    const isToday = targetDate.toDateString() === new Date().toDateString()
 
     for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
-      const startTime = new Date(selectedDate)
+      const startTime = new Date(targetDate)
       startTime.setHours(hour, 0, 0, 0)
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
@@ -138,7 +109,7 @@ export default function Booking({ user }) {
       const booking = existingBookings.find(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
-        const sameDate = bStart.toDateString() === selectedDate.toDateString()
+        const sameDate = bStart.toDateString() === targetDate.toDateString()
         return sameDate && startTime < bEnd && endTime > bStart
       })
 
@@ -163,6 +134,50 @@ export default function Booking({ user }) {
 
     setBookingSlots(slots)
     setSelectedSlots([])
+  }, [OPEN_HOUR, CLOSE_HOUR, SLOT_DURATION])
+
+  // ============================================
+  // LOAD BOOKINGS
+  // ============================================
+
+  const loadBookings = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await getBookingsForDate(selectedDate)
+      if (error) {
+        showToast('❌ Gagal memuat booking: ' + error.message, 'error')
+        setLoading(false)
+        return
+      }
+      setBookings(data || [])
+      generateSlots(data || [], selectedDate)
+    } catch (error) {
+      showToast('❌ Gagal memuat booking', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedDate, generateSlots, showToast])
+
+  // ============================================
+  // DATE HANDLING
+  // ============================================
+
+  function handleDateChange(e) {
+    if (isLoadingDate) return
+    
+    const dateStr = e.target.value
+    if (!dateStr) return
+    const parts = dateStr.split('-')
+    const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+    
+    setIsLoadingDate(true)
+    setSelectedSlots([])
+    setSelectedDate(newDate)
+    setLoading(true)
+    
+    setTimeout(() => {
+      setIsLoadingDate(false)
+    }, 300)
   }
 
   // ============================================
@@ -170,17 +185,13 @@ export default function Booking({ user }) {
   // ============================================
 
   useEffect(() => {
+    if (!user?.id) return
+
+    isMountedRef.current = true
+
     if (pendingBookingFromDashboard) {
       setBookingData(pendingBookingFromDashboard)
       setSelectedDate(new Date(pendingBookingFromDashboard.start_time))
-      const startTime = new Date(pendingBookingFromDashboard.start_time)
-      const endTime = new Date(pendingBookingFromDashboard.end_time)
-      const duration = (endTime - startTime) / (60 * 60 * 1000)
-      const fakeRange = {
-        start: startTime,
-        end: endTime,
-        duration: duration
-      }
       setShowCheckout(true)
       setLoading(false)
       return
@@ -197,23 +208,28 @@ export default function Booking({ user }) {
     checkAdmin()
     
     let loadTimeout = null
-    let isMounted = true
 
     const updateAndLoad = async () => {
       await completeExpiredBookings()
-      if (isMounted) {
+      if (isMountedRef.current) {
         await loadBookings()
       }
     }
     updateAndLoad()
 
+    // ✅ Supabase subscription with async/await request lock
     const subscription = supabase
       .channel('bookings-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        // ✅ Skip if a fetch is already in flight
+        if (isFetchingRef.current) return
+
         if (!loadTimeout) {
-          loadTimeout = setTimeout(() => {
-            if (isMounted) {
-              loadBookings()
+          loadTimeout = setTimeout(async () => {
+            if (isMountedRef.current && !isFetchingRef.current) {
+              isFetchingRef.current = true
+              await loadBookings()
+              isFetchingRef.current = false
             }
             loadTimeout = null
           }, 500)
@@ -222,13 +238,13 @@ export default function Booking({ user }) {
       .subscribe()
 
     return () => {
-      isMounted = false
+      isMountedRef.current = false
       if (loadTimeout) {
         clearTimeout(loadTimeout)
       }
       supabase.removeChannel(subscription)
     }
-  }, [selectedDate, pendingBookingFromDashboard, loadBookings, user.id])
+  }, [selectedDate, pendingBookingFromDashboard, loadBookings, user?.id])
 
   // ============================================
   // SLOT SELECTION
@@ -446,7 +462,6 @@ export default function Booking({ user }) {
 
   const range = getSelectedRange()
   const totalPrice = getTotalPrice()
-  const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
   const isResuming = pendingBookingFromDashboard && bookingData
 
   return (
