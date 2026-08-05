@@ -107,7 +107,6 @@ export default function Dashboard({ user, profile }) {
   const total = bookings.length
   const active = bookings.filter(b => b.status === 'active').length
   const pending = bookings.filter(b => b.status === 'pending').length
-  const pendingBooking = bookings.find(b => b.status === 'pending')
 
   return (
     <div className="container" style={{ paddingTop: '16px' }}>
@@ -189,25 +188,11 @@ export default function Dashboard({ user, profile }) {
                   {isPending ? (
                     <div>
                       <button
-                        onClick={() => navigate('/payment', { 
-                          state: { 
-                            bookingId: b.id,
-                            date: b.start_time.split('T')[0],
-                            slot: {
-                              hour: new Date(b.start_time).getHours(),
-                              startTime: b.start_time,
-                              endTime: b.end_time
-                            },
-                            duration: b.duration_hours,
-                            price: b.price,
-                            originalPrice: b.original_price || b.price,
-                            discountAmount: b.discount_applied || 0
-                          }
-                        })}
+                        onClick={() => navigate('/booking')}
                         className="btn btn-warning btn-sm"
                         style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
                       >
-                        💳 Lanjutkan Pembayaran
+                        📖 Lanjutkan Booking
                       </button>
                       <button
                         onClick={handleCancelPending}
