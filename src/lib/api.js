@@ -61,16 +61,21 @@ export async function getVouchers() {
   return data
 }
 
-// ✅ FIXED: Use UTC for database updates
 export async function updateVoucher(voucherId, updates) {
   const now = new Date()
-  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  const nowWIB = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}+07:00`
 
   const { data, error } = await supabase
     .from('vouchers')
     .update({
       ...updates,
-      updated_at: nowUTC.toISOString()
+      updated_at: nowWIB
     })
     .eq('id', voucherId)
     .select()
@@ -80,16 +85,21 @@ export async function updateVoucher(voucherId, updates) {
   return data
 }
 
-// ✅ FIXED: Use UTC for database updates
 export async function deactivateVoucher(voucherId) {
   const now = new Date()
-  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  const nowWIB = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}+07:00`
 
   const { data, error } = await supabase
     .from('vouchers')
     .update({ 
       active: false, 
-      updated_at: nowUTC.toISOString() 
+      updated_at: nowWIB
     })
     .eq('id', voucherId)
     .select()
@@ -111,7 +121,6 @@ export async function deleteVoucher(voucherId) {
   return data
 }
 
-// ✅ FIXED: Use UTC for expiry check
 export async function validateVoucher(code, duration) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -126,10 +135,16 @@ export async function validateVoucher(code, duration) {
     return { error: { message: 'Voucher sudah tidak aktif' } }
   }
 
-  // ✅ Use UTC for expiry check
   const now = new Date()
-  const nowUTC = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-  if (data.expires_at && new Date(data.expires_at) < nowUTC) {
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  const nowWIB = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}+07:00`
+
+  if (data.expires_at && new Date(data.expires_at) < new Date(nowWIB)) {
     return { error: { message: 'Voucher sudah kadaluarsa' } }
   }
 
@@ -148,35 +163,28 @@ export async function validateVoucher(code, duration) {
   return { data, error: null }
 }
 
-// ✅ FIXED: createBooking with UTC
 export async function createBooking(userId, slotData, duration, voucherId) {
   const { date, hour } = slotData
 
-  // Convert to UTC
-  const startDateTime = new Date(date)
-  startDateTime.setHours(hour, 0, 0, 0)
-  const startUTC = new Date(startDateTime.getTime() - startDateTime.getTimezoneOffset() * 60000)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(hour).padStart(2, '0')
+  const endHour = String(hour + duration).padStart(2, '0')
   
-  const endDateTime = new Date(startDateTime)
-  endDateTime.setHours(hour + duration, 0, 0, 0)
-  const endUTC = new Date(endDateTime.getTime() - endDateTime.getTimezoneOffset() * 60000)
+  const startWIB = `${year}-${month}-${day} ${hours}:00:00+07:00`
+  const endWIB = `${year}-${month}-${day} ${endHour}:00:00+07:00`
+  const startOfDayWIB = `${year}-${month}-${day} 00:00:00+07:00`
+  const endOfDayWIB = `${year}-${month}-${day} 23:59:59+07:00`
 
-  // UTC date range for conflict check
-  const startOfDay = new Date(date)
-  startOfDay.setHours(0, 0, 0, 0)
-  const startOfDayUTC = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000)
-  const endOfDayUTC = new Date(startOfDayUTC)
-  endOfDayUTC.setHours(23, 59, 59, 999)
-
-  // Check for existing bookings
   const { data: existing, error: checkError } = await supabase
     .from('bookings')
     .select('*')
     .in('status', ['pending', 'active'])
-    .gte('start_time', startOfDayUTC.toISOString())
-    .lte('start_time', endOfDayUTC.toISOString())
-    .filter('start_time', 'lt', endUTC.toISOString())
-    .filter('end_time', 'gt', startUTC.toISOString())
+    .gte('start_time', startOfDayWIB)
+    .lte('start_time', endOfDayWIB)
+    .filter('start_time', 'lt', endWIB)
+    .filter('end_time', 'gt', startWIB)
 
   if (checkError) return { error: checkError }
   if (existing.length > 0) {
@@ -208,14 +216,13 @@ export async function createBooking(userId, slotData, duration, voucherId) {
     }
   }
 
-  // ✅ Insert with UTC
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       user_id: userId,
       pin: null,
-      start_time: startUTC.toISOString(),
-      end_time: endUTC.toISOString(),
+      start_time: startWIB,
+      end_time: endWIB,
       duration_hours: duration,
       original_price: originalPrice,
       price: finalPrice,
