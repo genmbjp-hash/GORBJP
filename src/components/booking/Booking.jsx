@@ -53,15 +53,10 @@ export default function Booking({ user }) {
     return () => supabase.removeChannel(subscription)
   }, [selectedDate])
 
-  function getDateObj(dateStr) {
-    const parts = dateStr.split('-')
-    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
-  }
-
-  function formatDateDisplay(dateStr) {
-    const parts = dateStr.split('-')
-    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
-    return date.toLocaleDateString('id-ID', {
+  function formatDateDisplay(date) {
+    if (!date) return ''
+    const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
+    return dateObj.toLocaleDateString('id-ID', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -77,10 +72,17 @@ export default function Booking({ user }) {
     })
   }
 
+  function handleDateChange(e) {
+    const dateStr = e.target.value
+    if (!dateStr) return
+    const newDate = new Date(dateStr + 'T00:00:00')
+    setSelectedDate(newDate)
+    setSelectedSlots([])
+  }
+
   async function loadBookings() {
     setLoading(true)
-    const dateObj = getDateObj(selectedDate)
-    const { data, error } = await getBookingsForDate(dateObj)
+    const { data, error } = await getBookingsForDate(selectedDate)
     if (error) {
       showToast('❌ Gagal memuat booking: ' + error.message, 'error')
       setLoading(false)
@@ -94,11 +96,10 @@ export default function Booking({ user }) {
   function generateSlots(existingBookings) {
     const slots = []
     const now = new Date()
-    const dateObj = getDateObj(selectedDate)
-    const isToday = dateObj.toDateString() === new Date().toDateString()
+    const isToday = selectedDate.toDateString() === new Date().toDateString()
 
     for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
-      const startTime = new Date(dateObj)
+      const startTime = new Date(selectedDate)
       startTime.setHours(hour, 0, 0, 0)
       const endTime = new Date(startTime)
       endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
@@ -106,7 +107,7 @@ export default function Booking({ user }) {
       const booking = existingBookings.find(b => {
         const bStart = new Date(b.start_time)
         const bEnd = new Date(b.end_time)
-        const sameDate = bStart.toDateString() === dateObj.toDateString()
+        const sameDate = bStart.toDateString() === selectedDate.toDateString()
         return sameDate && startTime < bEnd && endTime > bStart
       })
 
@@ -130,13 +131,6 @@ export default function Booking({ user }) {
     }
 
     setBookingSlots(slots)
-    setSelectedSlots([])
-  }
-
-  function handleDateChange(e) {
-    const dateStr = e.target.value
-    if (!dateStr) return
-    setSelectedDate(dateStr)
     setSelectedSlots([])
   }
 
@@ -321,7 +315,7 @@ export default function Booking({ user }) {
     const range = getSelectedStartEnd()
     navigate('/checkout', {
       state: {
-        date: selectedDate,
+        date: selectedDate.toISOString().split('T')[0],
         slot: {
           hour: selectedSlots[0].hour,
           startTime: range.start.toISOString(),
@@ -360,7 +354,7 @@ export default function Booking({ user }) {
           </span>
           <input
             type="date"
-            value={selectedDate}
+            value={selectedDate.toISOString().split('T')[0]}
             onChange={handleDateChange}
             min={today.toISOString().split('T')[0]}
             max={maxDate.toISOString().split('T')[0]}
@@ -486,7 +480,7 @@ export default function Booking({ user }) {
         </h3>
         {visibleSlots.length === 0 && !loading ? (
           <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>
-            {new Date().toDateString() === getDateObj(selectedDate).toDateString() ? '⏰ Tidak ada slot tersisa untuk hari ini' : 'Tidak ada slot untuk hari ini'}
+            {new Date().toDateString() === selectedDate.toDateString() ? '⏰ Tidak ada slot tersisa untuk hari ini' : 'Tidak ada slot untuk hari ini'}
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
