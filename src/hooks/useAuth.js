@@ -10,53 +10,64 @@ export function useAuth() {
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    const loadUser = async () => {
+    let mounted = true
+
+    async function loadProfile(userId) {
+      if (!userId) {
+        if (mounted) setLoading(false)
+        return
+      }
+      
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      
+      if (mounted) {
+        setProfile(data)
+        setIsAdmin(data?.role === 'admin')
+        setLoading(false)
+      }
+    }
+
+    async function loadUser() {
       const { data: { session } } = await supabase.auth.getSession()
       
-      if (session?.user) {
-        setUser(session.user)
-        await loadProfile(session.user.id)
-      } else {
-        setUser(null)
-        setProfile(null)
-        setIsAdmin(false)
-        setLoading(false)
+      if (mounted) {
+        if (session?.user) {
+          setUser(session.user)
+          await loadProfile(session.user.id)
+        } else {
+          setUser(null)
+          setProfile(null)
+          setIsAdmin(false)
+          setLoading(false)
+        }
       }
     }
 
     loadUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-        await loadProfile(session.user.id)
-      } else {
-        setUser(null)
-        setProfile(null)
-        setIsAdmin(false)
-        setLoading(false)
+      if (mounted) {
+        if (session?.user) {
+          setUser(session.user)
+          await loadProfile(session.user.id)
+        } else {
+          setUser(null)
+          setProfile(null)
+          setIsAdmin(false)
+          setLoading(false)
+        }
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const loadProfile = async (userId) => {
-    if (!userId) {
-      setLoading(false)
-      return
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-    
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    
-    setProfile(data)
-    setIsAdmin(data?.role === 'admin')
-    setLoading(false)
-  }
+  }, [])
 
   const signOut = async () => {
     await supabase.auth.signOut()
