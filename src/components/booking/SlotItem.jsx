@@ -1,46 +1,51 @@
-// src/components/booking/SlotItem.jsx
+// src/components/booking/SlotList.jsx
 
 import React from 'react'
+import SlotItem from './SlotItem'
 
-function formatTime(date) {
-  return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-}
+export default function SlotList({ slots, isSelected, onToggle, isAdmin }) {
+  const visibleSlots = slots.filter(slot => !slot.isPast)
 
-export default function SlotItem({ slot, isSelected, onToggle, isAdmin }) {
-  const { startTime, endTime, isBooked, isAdminBooking, isAvailable, bookedBy, closureReason } = slot
-
-  let className = 'slot'
-  let stateText = ''
-
-  if (isSelected) {
-    className += ' selected'
-    stateText = '✅ Dipilih'
-  } else if (isBooked) {
-    if (isAdminBooking) {
-      className += ' admin'
-      stateText = closureReason || '🔴 Tidak tersedia'
-    } else {
-      className += ' booked'
-      stateText = `🔴 Booked by ${bookedBy || 'User'}`
-    }
-  } else {
-    className += ' available'
-    stateText = '🟢 Tersedia'
+  if (!slots || slots.length === 0) {
+    return (
+      <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>
+        ⏰ Tidak ada slot tersisa untuk hari ini
+      </p>
+    )
   }
 
-  const isClickable = isAvailable && !isBooked
+  if (visibleSlots.length === 0) {
+    return (
+      <div className="slot-list">
+        {slots.map((slot) => (
+          <SlotItem
+            key={slot.hour}
+            slot={slot}
+            isSelected={isSelected(slot)}
+            onToggle={onToggle}
+            isAdmin={isAdmin}
+            // ✅ onAdminToggle removed
+          />
+        ))}
+        <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '8px', fontSize: '13px' }}>
+          ⏰ Semua slot untuk hari ini sudah lewat
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <button
-      className={className}
-      onClick={() => isClickable && onToggle(slot)}
-      disabled={!isClickable}
-      aria-pressed={isSelected}
-      type="button"
-    >
-      <span className="slot-time">{formatTime(startTime)} - {formatTime(endTime)}</span>
-      <span className="slot-state">{stateText}</span>
-      {isSelected && <span className="slot-check">✓</span>}
-    </button>
+    <div className="slot-list">
+      {visibleSlots.map((slot) => (
+        <SlotItem
+          key={slot.hour}
+          slot={slot}
+          isSelected={isSelected(slot)}
+          onToggle={onToggle}
+          isAdmin={isAdmin}
+          // ✅ onAdminToggle removed
+        />
+      ))}
+    </div>
   )
 }
