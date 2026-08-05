@@ -271,9 +271,16 @@ function handleCloseEntireDay() {
 }
 
 async function executeAdminAction() {
+  console.log('🔵 executeAdminAction called')
+  console.log('🔵 pendingAction:', pendingAction)
+  console.log('🔵 selectedSlots:', selectedSlots)
+  console.log('🔵 closureReason:', closureReason)
+  
   setShowReasonModal(false)
   try {
     if (pendingAction === 'close') {
+      console.log('🔵 Closing individual slots')
+      
       const bookingsToInsert = selectedSlots.map(slot => ({
         user_id: user.id,
         pin: null,
@@ -288,16 +295,24 @@ async function executeAdminAction() {
         closure_reason: closureReason || null
       }))
       
-      const { error } = await supabase.from('bookings').insert(bookingsToInsert)
+      console.log('🔵 bookingsToInsert:', bookingsToInsert)
+      
+      const { data, error } = await supabase.from('bookings').insert(bookingsToInsert)
+      
       if (error) {
+        console.error('❌ Insert error:', error)
         showToast('❌ Gagal menutup slot: ' + error.message, 'error')
         return
       }
+      
+      console.log('✅ Insert success:', data)
       showToast(`✅ ${selectedSlots.length} slot ditutup`, 'success')
       setSelectedSlots([])
       loadBookings()
       
     } else if (pendingAction === 'closeAll') {
+      console.log('🔵 Closing entire day')
+      
       const customerBookings = bookings.filter(b => b.is_admin_booking === false)
       if (customerBookings.length > 0) {
         const ids = customerBookings.map(b => b.id)
@@ -319,22 +334,31 @@ async function executeAdminAction() {
         closure_reason: closureReason || 'Tutup Hari Ini'
       }))
       
-      const { error } = await supabase.from('bookings').insert(bookingsToInsert)
+      console.log('🔵 bookingsToInsert:', bookingsToInsert)
+      
+      const { data, error } = await supabase.from('bookings').insert(bookingsToInsert)
+      
       if (error) {
+        console.error('❌ Insert error:', error)
         showToast('❌ Gagal menutup hari: ' + error.message, 'error')
         return
       }
+      
+      console.log('✅ Insert success:', data)
       showToast(`✅ Hari ditutup (${allSlots.length} slot)`, 'success')
       setSelectedSlots([])
       loadBookings()
+    } else {
+      console.log('🔵 No pending action')
     }
   } catch (error) {
+    console.error('❌ Catch error:', error)
     showToast('❌ Gagal menjalankan aksi', 'error')
   }
   setPendingAction(null)
   setClosureReason('')
 }
-
+  
 async function handleAdminReopen(slot) {
   if (!isAdmin || !slot.isBooked || !slot.isAdminBooking) {
     showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
