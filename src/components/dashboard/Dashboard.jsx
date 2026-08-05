@@ -13,6 +13,10 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
+  // ✅ Debug: log user state
+  console.log('🔵 Dashboard: user', user?.id)
+  console.log('🔵 Dashboard: profile status', profile?.status)
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login')
@@ -157,9 +161,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ✅ Use navigate instead of Link */}
+      {/* ✅ Debug version with console log */}
       <button 
-        onClick={() => navigate('/booking')} 
+        onClick={() => {
+          console.log('🔵 Navigate to /booking')
+          navigate('/booking')
+        }} 
         className="btn btn-primary"
         style={{ marginBottom: '16px' }}
       >
