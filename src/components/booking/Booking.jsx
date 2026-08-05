@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, getBookingsForDate, completeExpiredBookings } from '../lib/supabase'
-import { useToast } from '../App'
+import { supabase, getBookingsForDate, completeExpiredBookings } from '../../lib/supabase'
+import { useToast } from '../../hooks/useToast'
 
 export default function Booking({ user }) {
   const [selectedDate, setSelectedDate] = useState(new Date())
