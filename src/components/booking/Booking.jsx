@@ -170,8 +170,6 @@ export default function Booking({ user }) {
   // ============================================
 
   async function loadBookings() {
-    if (loading) return
-    
     setLoading(true)
     const { data, error } = await getBookingsForDate(selectedDate)
     if (error) {
