@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase, getBookingsForDate, completeExpiredBookings } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
 import { calculatePrice, formatPrice } from '../../lib/price'
@@ -10,6 +10,11 @@ import PaymentSheet from '../payment/PaymentSheet'
 import Legend from './Legend'
 
 export default function Booking({ user }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const showToast = useToast()
+  const pendingBookingFromDashboard = location.state?.pendingBooking || null
+
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,8 +28,6 @@ export default function Booking({ user }) {
   const [showReasonModal, setShowReasonModal] = useState(false)
   const [closureReason, setClosureReason] = useState('')
   const [pendingAction, setPendingAction] = useState(null)
-  const navigate = useNavigate()
-  const showToast = useToast()
 
   const OPEN_HOUR = 7
   const CLOSE_HOUR = 23
@@ -65,6 +68,26 @@ export default function Booking({ user }) {
   }
 
   useEffect(() => {
+    // ✅ If there's a pending booking from dashboard, resume it
+    if (pendingBookingFromDashboard) {
+      setBookingData(pendingBookingFromDashboard)
+      setSelectedDate(new Date(pendingBookingFromDashboard.start_time))
+      // Calculate range from the booking
+      const startTime = new Date(pendingBookingFromDashboard.start_time)
+      const endTime = new Date(pendingBookingFromDashboard.end_time)
+      const duration = (endTime - startTime) / (60 * 60 * 1000)
+      // Create a fake range for the checkout
+      const fakeRange = {
+        start: startTime,
+        end: endTime,
+        duration: duration
+      }
+      // Set range and open checkout
+      setShowCheckout(true)
+      setLoading(false)
+      return
+    }
+
     const checkAdmin = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -87,7 +110,7 @@ export default function Booking({ user }) {
       .subscribe()
 
     return () => supabase.removeChannel(subscription)
-  }, [selectedDate])
+  }, [selectedDate, pendingBookingFromDashboard])
 
   async function loadBookings() {
     setLoading(true)
@@ -343,6 +366,9 @@ export default function Booking({ user }) {
   const totalPrice = getTotalPrice()
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
 
+  // ✅ For pending booking resume, show a custom checkout header
+  const isResuming = pendingBookingFromDashboard && bookingData
+
   return (
     <div className="container" style={{ paddingTop: '16px', paddingBottom: '140px' }}>
       <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
@@ -360,117 +386,134 @@ export default function Booking({ user }) {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <span style={{ fontWeight: 600, fontSize: '16px' }}>
-            📅 {formatDateDisplay(selectedDate)}
-          </span>
-          <input
-            type="date"
-            value={selectedDate.toISOString().split('T')[0]}
-            onChange={handleDateChange}
-            min={today.toISOString().split('T')[0]}
-            max={maxDate.toISOString().split('T')[0]}
-            className="date-input"
-          />
-        </div>
-      </div>
-
-      {isAdmin && (
+      {/* ✅ Show resume header if resuming pending booking */}
+      {isResuming && (
         <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', color: '#92400E', marginRight: '8px' }}>👑 Admin Mode</span>
-            <button onClick={handleCloseEntireDay} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}>📅 Tutup Hari Ini</button>
-            <button onClick={handleReopenEntireDay} className="btn btn-success btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}>📅 Buka Hari Ini</button>
-            {selectedSlots.length > 0 && (
-              <button onClick={handleAdminClose} className="btn btn-warning btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}>
-                Tutup {selectedSlots.length} Slot
-              </button>
-            )}
+          <p style={{ fontSize: '14px', color: '#92400E', margin: 0 }}>
+            🔄 Melanjutkan pembayaran untuk booking yang tertunda
+          </p>
+        </div>
+      )}
+
+      {!isResuming && (
+        <>
+          <div className="card" style={{ marginTop: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <span style={{ fontWeight: 600, fontSize: '16px' }}>
+                📅 {formatDateDisplay(selectedDate)}
+              </span>
+              <input
+                type="date"
+                value={selectedDate.toISOString().split('T')[0]}
+                onChange={handleDateChange}
+                min={today.toISOString().split('T')[0]}
+                max={maxDate.toISOString().split('T')[0]}
+                className="date-input"
+              />
+            </div>
           </div>
-          {selectedSlots.length > 0 && (
-            <div style={{ marginTop: '8px', fontSize: '13px', color: '#92400E' }}>
-              ✅ {selectedSlots.length} slot dipilih
+
+          {isAdmin && (
+            <div className="card" style={{ background: '#FEF3C7', border: '1px solid var(--warning)' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', color: '#92400E', marginRight: '8px' }}>👑 Admin Mode</span>
+                <button onClick={handleCloseEntireDay} className="btn btn-danger btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}>📅 Tutup Hari Ini</button>
+                <button onClick={handleReopenEntireDay} className="btn btn-success btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}>📅 Buka Hari Ini</button>
+                {selectedSlots.length > 0 && (
+                  <button onClick={handleAdminClose} className="btn btn-warning btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px', fontSize: '13px' }}>
+                    Tutup {selectedSlots.length} Slot
+                  </button>
+                )}
+              </div>
+              {selectedSlots.length > 0 && (
+                <div style={{ marginTop: '8px', fontSize: '13px', color: '#92400E' }}>
+                  ✅ {selectedSlots.length} slot dipilih
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {showReasonModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999,
-          padding: '16px'
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '400px',
-            width: '100%'
-          }}>
-            <h3 style={{ marginBottom: '12px' }}>⛔ Alasan Penutupan</h3>
-            <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '12px' }}>
-              Tambahkan alasan (opsional)
-            </p>
-            <input
-              type="text"
-              value={closureReason}
-              onChange={(e) => setClosureReason(e.target.value)}
-              placeholder="Contoh: Maintenance, Private Event, dll"
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                border: '2px solid var(--gray-200)',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontFamily: 'inherit',
-                marginBottom: '16px'
-              }}
-              autoFocus
-            />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => { setShowReasonModal(false); setPendingAction(null); setClosureReason(''); }} className="btn btn-outline" style={{ flex: 1 }}>Batal</button>
-              <button onClick={executeAdminAction} className="btn btn-primary" style={{ flex: 1 }}>Konfirmasi</button>
+          {showReasonModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 999,
+              padding: '16px'
+            }}>
+              <div style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '24px',
+                maxWidth: '400px',
+                width: '100%'
+              }}>
+                <h3 style={{ marginBottom: '12px' }}>⛔ Alasan Penutupan</h3>
+                <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+                  Tambahkan alasan (opsional)
+                </p>
+                <input
+                  type="text"
+                  value={closureReason}
+                  onChange={(e) => setClosureReason(e.target.value)}
+                  placeholder="Contoh: Maintenance, Private Event, dll"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '2px solid var(--gray-200)',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    marginBottom: '16px'
+                  }}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => { setShowReasonModal(false); setPendingAction(null); setClosureReason(''); }} className="btn btn-outline" style={{ flex: 1 }}>Batal</button>
+                  <button onClick={executeAdminAction} className="btn btn-primary" style={{ flex: 1 }}>Konfirmasi</button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          <SlotList
+            slots={bookingSlots}
+            isSelected={isSlotSelected}
+            onToggle={handleSlotClick}
+            isAdmin={isAdmin}
+            onAdminClose={handleAdminClose}
+            onAdminToggle={handleAdminSlotToggle}
+          />
+
+          <Legend />
+
+          <StickyCart
+            range={range}
+            totalPrice={totalPrice}
+            selectedSlots={selectedSlots}
+            onClear={() => setSelectedSlots([])}
+            onCheckout={handleProceedToCheckout}
+            onRemoveSlot={removeSlot}
+          />
+        </>
       )}
-
-      <SlotList
-        slots={bookingSlots}
-        isSelected={isSlotSelected}
-        onToggle={handleSlotClick}
-        isAdmin={isAdmin}
-        onAdminClose={handleAdminClose}
-        onAdminToggle={handleAdminSlotToggle}
-      />
-
-      <Legend />
-
-      <StickyCart
-        range={range}
-        totalPrice={totalPrice}
-        selectedSlots={selectedSlots}
-        onClear={() => setSelectedSlots([])}
-        onCheckout={handleProceedToCheckout}
-        onRemoveSlot={removeSlot}
-      />
 
       <CheckoutSheet
         isOpen={showCheckout}
         onClose={() => setShowCheckout(false)}
-        range={range}
-        totalPrice={totalPrice}
-        selectedDate={selectedDate}
+        range={isResuming ? {
+          start: new Date(bookingData.start_time),
+          end: new Date(bookingData.end_time),
+          duration: bookingData.duration_hours
+        } : range}
+        totalPrice={isResuming ? bookingData.price : totalPrice}
+        selectedDate={isResuming ? new Date(bookingData.start_time) : selectedDate}
         user={user}
         voucher={voucher}
         onVoucherChange={setVoucher}
@@ -482,6 +525,8 @@ export default function Booking({ user }) {
           setBookingData(data)
           setSelectedSlots([])
         }}
+        isResuming={isResuming}
+        existingBooking={bookingData}
       />
 
       <PaymentSheet
