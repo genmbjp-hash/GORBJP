@@ -1,5 +1,3 @@
-// src/components/booking/StickyCart.jsx
-
 import React, { useState } from 'react'
 import { formatPrice } from '../../lib/price'
 
@@ -7,7 +5,15 @@ function formatTime(date) {
   return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function StickyCart({ range, totalPrice, selectedSlots, onClear, onCheckout, onRemoveSlot }) {
+export default function StickyCart({ 
+  range, 
+  totalPrice, 
+  selectedSlots, 
+  onClear, 
+  onCheckout, 
+  onRemoveSlot,
+  isResuming = false  // ✅ NEW prop
+}) {
   const [isOpen, setIsOpen] = useState(false)
 
   if (!range) return null
@@ -34,14 +40,20 @@ export default function StickyCart({ range, totalPrice, selectedSlots, onClear, 
             {selectedSlots.map((slot) => (
               <span key={slot.hour} className="chip">
                 {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
-                <button onClick={() => onRemoveSlot(slot)} aria-label="Hapus jam">✕</button>
+                {!isResuming && (  // ✅ Only show X button if not resuming
+                  <button onClick={() => onRemoveSlot(slot)} aria-label="Hapus jam">✕</button>
+                )}
               </span>
             ))}
           </div>
         </div>
         <div className="cart-actions">
-          <button className="btn btn-outline cart-clear" onClick={onClear}>✕</button>
-          <button className="btn btn-primary" onClick={onCheckout}>Lanjut ke pembayaran →</button>
+          {!isResuming && (  // ✅ Only show Clear button if not resuming
+            <button className="btn btn-outline cart-clear" onClick={onClear}>✕</button>
+          )}
+          <button className="btn btn-primary" onClick={onCheckout}>
+            {isResuming ? '💳 Lanjutkan Pembayaran →' : 'Lanjut ke pembayaran →'}
+          </button>
         </div>
       </div>
     </div>
