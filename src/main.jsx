@@ -1,10 +1,13 @@
+// src/main.jsx
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import App from './App'
 import './styles/style.css'
 
-// Optional: Add ErrorBoundary
+// ✅ Optional Error Boundary (from my version)
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
@@ -56,7 +59,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <BrowserRouter>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
   </React.StrictMode>
