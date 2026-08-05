@@ -500,6 +500,7 @@ export default function Booking({ user }) {
             onClear={() => setSelectedSlots([])}
             onCheckout={handleProceedToCheckout}
             onRemoveSlot={removeSlot}
+            isResuming={isResuming}
           />
         </>
       )}
