@@ -70,18 +70,18 @@ export async function getProfile(userId) {
 // ============================================
 
 export async function getBookingsForDate(dateObj) {
-  const year = dateObj.getFullYear()
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
-  const day = String(dateObj.getDate()).padStart(2, '0')
+  // Simple query without timezone conversion
+  const startDate = new Date(dateObj)
+  startDate.setHours(0, 0, 0, 0)
   
-  const startWIB = `${year}-${month}-${day} 00:00:00+07:00`
-  const endWIB = `${year}-${month}-${day} 23:59:59+07:00`
+  const endDate = new Date(dateObj)
+  endDate.setHours(23, 59, 59, 999)
 
   const { data, error } = await supabase
     .from('bookings')
     .select('*, profiles(full_name, display_name)')
-    .gte('start_time', startWIB)
-    .lte('start_time', endWIB)
+    .gte('start_time', startDate.toISOString())
+    .lte('start_time', endDate.toISOString())
     .in('status', ['pending', 'active', 'completed'])
 
   return { data, error }
