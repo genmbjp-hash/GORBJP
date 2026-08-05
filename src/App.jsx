@@ -1,20 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { supabase, getProfile } from './lib/supabase'
-
-// Components
 import Login from './components/Login'
 import Signup from './components/Signup'
-import Dashboard from './components/Dashboard'
-import Booking from './components/Booking'
-import Admin from './components/Admin'
-import Checkout from './components/Checkout'
-import Confirmation from './components/Confirmation'
-import Payment from './components/Payment'
-import PaymentSuccess from './components/PaymentSuccess'
-import PaymentFailed from './components/PaymentFailed'
+import Dashboard from './components/dashboard/Dashboard'
+import Booking from './components/booking/Booking'
+import Admin from './components/admin/Admin'
 
-// Toast Context
+// Toast context
 const ToastContext = React.createContext()
 export function useToast() {
   return React.useContext(ToastContext)
@@ -27,31 +20,32 @@ function App() {
   const [toasts, setToasts] = useState([])
   const navigate = useNavigate()
 
-useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      setUser(session.user)
-      loadProfile(session.user.id)
-    } else {
-      setLoading(false)
-    }
-  })
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user)
+        loadProfile(session.user.id)
+      } else {
+        setLoading(false)
+      }
+    })
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (session?.user) {
-      setUser(session.user)
-      await loadProfile(session.user.id)
-      
-    } else {
-      setUser(null)
-      setProfile(null)
-      setLoading(false)
-    }
-  })
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+        loadProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+      }
+    })
 
-  return () => subscription.unsubscribe()
-}, [])
-  
+    return () => subscription.unsubscribe()
+  }, [])
+
   async function loadProfile(userId) {
     const { data } = await getProfile(userId)
     setProfile(data)
@@ -97,65 +91,31 @@ useEffect(() => {
           } />
           <Route path="/dashboard" element={
             user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-              <Dashboard user={user} profile={profile} />
+              <Dashboard />
             ) : (
               <Navigate to="/" />
             )
           } />
           <Route path="/booking" element={
-  user && profile?.status === 'approved' ? (
-    <Booking user={user} />
-  ) : (
-    <Navigate to="/" />
-  )
-} />
-          <Route path="/checkout" element={
-  user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-    <Checkout user={user} />
-  ) : (
-    <Navigate to="/" />
-  )
-} />
-<Route path="/confirmation" element={
-  user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-    <Confirmation />
-  ) : (
-    <Navigate to="/" />
-  )
-} />
-          <Route path="/admin" element={
-            user && profile?.role === 'admin' ? (
-              <Admin user={user} />
+            user && profile?.status === 'approved' ? (
+              <Booking />
             ) : (
               <Navigate to="/" />
             )
           } />
-          <Route path="/payment" element={
-  user && profile?.status === 'approved' ? (
-    <Payment user={user} />
-  ) : (
-    <Navigate to="/" />
-  )
-} />
-<Route path="/payment-success" element={
-  user && profile?.status === 'approved' ? (
-    <PaymentSuccess />
-  ) : (
-    <Navigate to="/" />
-  )
-} />
-<Route path="/payment-failed" element={
-  user && profile?.status === 'approved' ? (
-    <PaymentFailed />
-  ) : (
-    <Navigate to="/" />
-  )
-} />
+          <Route path="/admin" element={
+            user && profile?.role === 'admin' ? (
+              <Admin />
+            ) : (
+              <Navigate to="/" />
+            )
+          } />
         </Routes>
 
-        <div className="toast-container">
+        {/* Toast Container */}
+        <div className="toast-wrap">
           {toasts.map(toast => (
-            <div key={toast.id} className={`toast toast-${toast.type}`}>
+            <div key={toast.id} className={`toast ${toast.type}`}>
               {toast.message}
             </div>
           ))}
@@ -165,28 +125,44 @@ useEffect(() => {
   )
 }
 
+// ===== LANDING PAGE COMPONENT =====
 function LandingPage({ user, profile }) {
   return (
     <div className="container" style={{ paddingTop: '40px' }}>
       <div className="card" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', color: 'white', border: 'none', textAlign: 'center', padding: '40px 24px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '8px' }}>🏛️ Gedung Serbaguna BJP</h1>
         <p style={{ fontSize: '16px', opacity: 0.9 }}>Sewa venue dengan mudah, dapatkan PIN akses</p>
+        <p style={{ fontSize: '14px', opacity: 0.7 }}>Book venue easily, get your access PIN</p>
       </div>
 
       <div className="card">
         <h3 style={{ fontSize: '18px', fontWeight: 700, textAlign: 'center', color: 'var(--primary)', marginBottom: '16px' }}>📋 Cara Kerja</h3>
         <div className="how-it-works">
-          <div className="hiw-step"><div className="hiw-number">1</div><div className="hiw-text">Daftar & Tunggu Approval</div></div>
-          <div className="hiw-step"><div className="hiw-number">2</div><div className="hiw-text">Pilih Tanggal & Waktu</div></div>
-          <div className="hiw-step"><div className="hiw-number">3</div><div className="hiw-text">Dapatkan PIN & Masuk</div></div>
+          <div className="hiw-step">
+            <div className="hiw-number">1</div>
+            <div className="hiw-text">Daftar & Tunggu Approval</div>
+          </div>
+          <div className="hiw-step">
+            <div className="hiw-number">2</div>
+            <div className="hiw-text">Pilih Tanggal & Waktu</div>
+          </div>
+          <div className="hiw-step">
+            <div className="hiw-number">3</div>
+            <div className="hiw-text">Dapatkan PIN & Masuk</div>
+          </div>
         </div>
       </div>
 
       {user && profile?.status === 'pending' && (
-        <div className="alert alert-warning">⏳ Akun Anda menunggu persetujuan admin.</div>
+        <div className="alert alert-warning">
+          ⏳ Akun Anda menunggu persetujuan admin. Silakan tunggu.
+        </div>
       )}
+
       {user && profile?.status === 'rejected' && (
-        <div className="alert alert-error">❌ Akun Anda ditolak. Hubungi admin.</div>
+        <div className="alert alert-error">
+          ❌ Akun Anda ditolak. Hubungi admin.
+        </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
