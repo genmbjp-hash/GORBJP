@@ -41,16 +41,17 @@ export default function Booking({ user }) {
   maxDate.setHours(0, 0, 0, 0)
 
   function formatDateDisplay(date) {
-    if (!date) return ''
-    const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
-    return dateObj.toLocaleDateString('id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })
-  }
-
+  if (!date) return ''
+  const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
+  return dateObj.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta'
+  })
+}
+  
   function formatTime(date) {
     return date.toLocaleTimeString('id-ID', {
       hour: '2-digit',
@@ -60,13 +61,13 @@ export default function Booking({ user }) {
   }
 
   function handleDateChange(e) {
-    const dateStr = e.target.value
-    if (!dateStr) return
-    const newDate = new Date(dateStr + 'T00:00:00')
-    setSelectedDate(newDate)
-    setSelectedSlots([])
-  }
-
+  const dateStr = e.target.value
+  if (!dateStr) return
+  const parts = dateStr.split('-')
+  const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+  setSelectedDate(newDate)
+  setSelectedSlots([])
+}
   useEffect(() => {
     // ✅ If there's a pending booking from dashboard, resume it
     if (pendingBookingFromDashboard) {
@@ -435,13 +436,13 @@ async function handleReopenEntireDay() {
                 📅 {formatDateDisplay(selectedDate)}
               </span>
               <input
-                type="date"
-                value={selectedDate.toISOString().split('T')[0]}
-                onChange={handleDateChange}
-                min={today.toISOString().split('T')[0]}
-                max={maxDate.toISOString().split('T')[0]}
-                className="date-input"
-              />
+  type="date"
+  value={selectedDate.toISOString().split('T')[0]}
+  onChange={handleDateChange}
+  min={today.toISOString().split('T')[0]}
+  max={maxDate.toISOString().split('T')[0]}
+  className="date-input"
+/>
             </div>
           </div>
 
