@@ -72,6 +72,8 @@ function App() {
     <ToastContext.Provider value={showToast}>
       <div className="app">
 
+<// src/App.jsx — Routes section (temporary)
+
 <Routes>
   <Route path="/" element={
     user && profile?.status === 'approved' ? (
@@ -101,23 +103,8 @@ function App() {
     )
   } />
   
-  {/* ✅ FIXED: Booking route */}
-  <Route path="/booking" element={
-    !user ? (
-      <Navigate to="/login" />
-    ) : profile?.status === 'approved' ? (
-      <Booking />
-    ) : profile?.status === 'pending' ? (
-      <div className="container" style={{ paddingTop: '40px' }}>
-        <div className="card">
-          <p>⏳ Akun Anda menunggu persetujuan admin.</p>
-          <button onClick={() => navigate('/')} className="btn btn-primary">Kembali</button>
-        </div>
-      </div>
-    ) : (
-      <Navigate to="/" />
-    )
-  } />
+  {/* ✅ TEMPORARY: No guard */}
+  <Route path="/booking" element={<Booking />} />
   
   <Route path="/admin" element={
     user && profile?.role === 'admin' ? (
