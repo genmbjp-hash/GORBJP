@@ -1,13 +1,8 @@
-// src/lib/api.js
-
 import { supabase } from './supabase'
 import { calculatePrice, calculateDiscount } from './price'
 
 const EDGE_FUNCTION_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
-/**
- * Call an Edge Function with authentication
- */
 async function callEdgeFunction(functionName, body) {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
@@ -34,10 +29,6 @@ async function callEdgeFunction(functionName, body) {
   return result
 }
 
-// ============================================
-// EDGE FUNCTION CALLS
-// ============================================
-
 export async function confirmPayment(bookingId) {
   return callEdgeFunction('confirm-payment', { bookingId })
 }
@@ -57,10 +48,6 @@ export async function generateMasterPin(durationMinutes, purpose) {
 export async function forceLamp(state) {
   return callEdgeFunction('force-lamp', { state })
 }
-
-// ============================================
-// DIRECT SUPABASE CALLS (for voucher management)
-// ============================================
 
 export async function getVouchers() {
   const { data, error } = await supabase
@@ -111,10 +98,6 @@ export async function deleteVoucher(voucherId) {
   return data
 }
 
-// ============================================
-// VOUCHER VALIDATION
-// ============================================
-
 export async function validateVoucher(code, duration) {
   const { data, error } = await supabase
     .from('vouchers')
@@ -148,17 +131,7 @@ export async function validateVoucher(code, duration) {
   return { data, error: null }
 }
 
-// ============================================
-// CREATE BOOKING
-// ============================================
-
 export async function createBooking(userId, slotData, duration, voucherId) {
-  // ✅ Check if userId is valid
-  if (!userId) {
-    return { error: { message: 'User not authenticated' } }
-  }
-
-  console.log('📤 Creating booking for user:', userId)
   const { date, hour } = slotData
 
   const startDateTime = new Date(date)
