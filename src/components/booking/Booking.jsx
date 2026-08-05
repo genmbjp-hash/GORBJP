@@ -358,7 +358,6 @@ export default function Booking({ user }) {
         
         console.log('🔵 bookingsToInsert:', bookingsToInsert)
         
-        // ✅ FIX: Added .select() to return inserted data
         const { data, error } = await supabase
           .from('bookings')
           .insert(bookingsToInsert)
@@ -401,7 +400,6 @@ export default function Booking({ user }) {
         
         console.log('🔵 bookingsToInsert:', bookingsToInsert)
         
-        // ✅ FIX: Added .select() to return inserted data
         const { data, error } = await supabase
           .from('bookings')
           .insert(bookingsToInsert)
@@ -504,7 +502,6 @@ export default function Booking({ user }) {
               <span style={{ fontWeight: 600, fontSize: '16px' }}>
                 📅 {formatDateDisplay(selectedDate)}
               </span>
-              {/* ✅ FIXED: Using getLocalDateString instead of toISOString */}
               <input
                 type="date"
                 value={getLocalDateString(selectedDate)}
@@ -586,27 +583,29 @@ export default function Booking({ user }) {
           )}
 
           <SlotList
-  slots={bookingSlots}
-  isSelected={isSlotSelected}
-  onToggle={handleSlotClick}
-  isAdmin={isAdmin}
-  onAdminClose={handleAdminClose}
-  onAdminToggle={handleAdminSlotToggle}
-/>
+            slots={bookingSlots}
+            isSelected={isSlotSelected}
+            onToggle={handleSlotClick}
+            isAdmin={isAdmin}
+            onAdminClose={handleAdminClose}
+            onAdminToggle={handleAdminSlotToggle}
+          />
 
-<Legend />
+          <Legend />
 
-{!isAdmin && (
-  <StickyCart
-    range={range}
-    totalPrice={totalPrice}
-    selectedSlots={selectedSlots}
-    onClear={() => setSelectedSlots([])}
-    onCheckout={handleProceedToCheckout}
-    onRemoveSlot={removeSlot}
-    isResuming={isResuming}
-  />
-)}
+          {!isAdmin && (
+            <StickyCart
+              range={range}
+              totalPrice={totalPrice}
+              selectedSlots={selectedSlots}
+              onClear={() => setSelectedSlots([])}
+              onCheckout={handleProceedToCheckout}
+              onRemoveSlot={removeSlot}
+              isResuming={isResuming}
+            />
+          )}
+        </>
+      )}
 
       <CheckoutSheet
         isOpen={showCheckout}
