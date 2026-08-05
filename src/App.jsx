@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { supabase, getProfile } from '../../lib/supabase'
-import Login from './Login'
-import Signup from './Signup'
-import Dashboard from './dashboard/Dashboard'
-import Booking from './booking/Booking'
-import Admin from './admin/Admin'
-import Payment from './Payment'
-import PaymentSuccess from './PaymentSuccess'
-import PaymentFailed from './PaymentFailed'
+import { supabase, getProfile } from './lib/supabase'
+import Login from './components/Login'
+import Signup from './components/Signup'
+import Dashboard from './components/dashboard/Dashboard'
+import Booking from './components/booking/Booking'
+import Admin from './components/admin/Admin'
+import Payment from './components/Payment'
+import PaymentSuccess from './components/PaymentSuccess'
+import PaymentFailed from './components/PaymentFailed'
 
 const ToastContext = React.createContext()
 export function useToast() {
