@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { supabase, getProfile } from './lib/supabase'
-import Login from './components/Login'
-import Signup from './components/Signup'
-import Dashboard from './components/Dashboard'
-import Booking from './components/Booking'
-import Admin from './components/Admin'
-import Payment from './components/Payment'
-import PaymentSuccess from './components/PaymentSuccess'
-import PaymentFailed from './components/PaymentFailed'
+import { supabase, getProfile } from '../lib/supabase'
+import Login from './Login'
+import Signup from './Signup'
+import Dashboard from './dashboard/Dashboard'
+import Booking from './booking/Booking'
+import Admin from './admin/Admin'
+import Payment from './Payment'
+import PaymentSuccess from './PaymentSuccess'
+import PaymentFailed from './PaymentFailed'
 
 const ToastContext = React.createContext()
 export function useToast() {
@@ -90,21 +90,21 @@ function App() {
           } />
           <Route path="/dashboard" element={
             user && profile?.status === 'approved' && profile?.role !== 'admin' ? (
-              <Dashboard />
+              <Dashboard user={user} profile={profile} />
             ) : (
               <Navigate to="/" />
             )
           } />
           <Route path="/booking" element={
             user && profile?.status === 'approved' ? (
-              <Booking />
+              <Booking user={user} />
             ) : (
               <Navigate to="/" />
             )
           } />
           <Route path="/payment" element={
             user && profile?.status === 'approved' ? (
-              <Payment />
+              <Payment user={user} />
             ) : (
               <Navigate to="/" />
             )
@@ -125,7 +125,7 @@ function App() {
           } />
           <Route path="/admin" element={
             user && profile?.role === 'admin' ? (
-              <Admin />
+              <Admin user={user} />
             ) : (
               <Navigate to="/" />
             )
