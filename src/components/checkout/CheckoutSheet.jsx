@@ -19,6 +19,8 @@ export default function CheckoutSheet({
   onVoucherChange,
   onPayment,
   onBookingCreated,
+  isResuming = false,
+  existingBooking = null,
 }) {
   const [voucherCode, setVoucherCode] = useState('')
   const [voucherError, setVoucherError] = useState('')
@@ -27,11 +29,17 @@ export default function CheckoutSheet({
   const [showVoucher, setShowVoucher] = useState(false)
   const { showToast } = useToast()
 
-  if (!isOpen || !range) return null
+  if (!isOpen) return null
 
-  const { start, end, duration } = range
-  const finalPrice = voucher ? calculateFinalPrice(totalPrice, voucher) : totalPrice
-  const discountAmount = voucher ? calculateDiscount(totalPrice, voucher) : 0
+  const start = isResuming && existingBooking ? new Date(existingBooking.start_time) : range?.start
+  const end = isResuming && existingBooking ? new Date(existingBooking.end_time) : range?.end
+  const duration = isResuming && existingBooking ? existingBooking.duration_hours : range?.duration
+  const price = isResuming && existingBooking ? existingBooking.price : totalPrice
+
+  if (!start || !end || !duration) return null
+
+  const finalPrice = voucher ? calculateFinalPrice(price, voucher) : price
+  const discountAmount = voucher ? calculateDiscount(price, voucher) : 0
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
@@ -58,6 +66,14 @@ export default function CheckoutSheet({
   const handleConfirmBooking = async () => {
     setLoading(true)
 
+    // ✅ If resuming existing booking, just go to payment
+    if (isResuming && existingBooking) {
+      onPayment()
+      setLoading(false)
+      return
+    }
+
+    // ✅ New booking flow
     const dateStr = selectedDate.toISOString().split('T')[0]
     const result = await createBooking(
       user.id,
@@ -77,13 +93,19 @@ export default function CheckoutSheet({
     setLoading(false)
   }
 
+  const displayDate = isResuming && existingBooking
+    ? new Date(existingBooking.start_time)
+    : selectedDate
+
   return (
     <>
       <div className={`overlay ${isOpen ? 'show' : ''}`} onClick={onClose}></div>
       <div className={`sheet ${isOpen ? 'show' : ''}`}>
         <div className="sheet-handle"></div>
         <div className="sheet-head">
-          <span className="sheet-title">Ringkasan pesanan</span>
+          <span className="sheet-title">
+            {isResuming ? 'Lanjutkan Pembayaran' : 'Ringkasan Pesanan'}
+          </span>
           <button className="sheet-close" onClick={onClose}>✕</button>
         </div>
         <div className="steps">
@@ -96,7 +118,9 @@ export default function CheckoutSheet({
           <div className="summary">
             <div className="row">
               <span className="k">📅 Tanggal</span>
-              <span className="v">{selectedDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <span className="v">
+                {displayDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
             </div>
             <div className="row">
               <span className="k">⏰ Waktu</span>
@@ -111,7 +135,7 @@ export default function CheckoutSheet({
               <span className="total-v">
                 {discountAmount > 0 ? (
                   <>
-                    <span className="strike">{formatPrice(totalPrice)}</span>
+                    <span className="strike">{formatPrice(price)}</span>
                     {formatPrice(finalPrice)}
                   </>
                 ) : (
@@ -148,9 +172,13 @@ export default function CheckoutSheet({
             </div>
           )}
 
-          <div className="note">ℹ️ Booking aktif setelah admin mengonfirmasi pembayaran. PIN akses dikirim otomatis.</div>
+          <div className="note">
+            {isResuming
+              ? 'ℹ️ Lanjutkan pembayaran untuk booking yang sudah dibuat.'
+              : 'ℹ️ Booking aktif setelah admin mengonfirmasi pembayaran. PIN akses dikirim otomatis.'}
+          </div>
           <button className="btn btn-primary" onClick={handleConfirmBooking} disabled={loading}>
-            {loading ? '⏳ Memproses...' : 'Lanjut ke pembayaran →'}
+            {loading ? '⏳ Memproses...' : isResuming ? '💳 Lanjutkan Pembayaran →' : 'Lanjut ke pembayaran →'}
           </button>
         </div>
       </div>
