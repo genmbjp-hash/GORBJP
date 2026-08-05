@@ -249,24 +249,28 @@ export default function Booking({ user }) {
     }
   }
 
-  function handleAdminClose() {
-    if (selectedSlots.length === 0) {
-      showToast('❌ Pilih slot terlebih dahulu', 'warning')
-      return
-    }
-    setPendingAction('close')
-    setClosureReason('')
-    setShowReasonModal(true)
-  }
+  // ============================================
+// ADMIN FUNCTIONS
+// ============================================
 
-  function handleCloseEntireDay() {
-    if (!window.confirm(`⚠️ PERINGATAN!\n\nAnda akan menutup SEMUA slot untuk hari ini:\n${formatDateDisplay(selectedDate)}\n\nIni akan membatalkan semua booking customer yang sudah ada.\n\nLanjutkan?`)) return
-    setPendingAction('closeAll')
-    setClosureReason('')
-    setShowReasonModal(true)
+function handleAdminClose() {
+  if (selectedSlots.length === 0) {
+    showToast('❌ Pilih slot terlebih dahulu', 'warning')
+    return
   }
+  setPendingAction('close')
+  setClosureReason('')
+  setShowReasonModal(true)
+}
 
-  async function executeAdminAction() {
+function handleCloseEntireDay() {
+  if (!window.confirm(`⚠️ PERINGATAN!\n\nAnda akan menutup SEMUA slot untuk hari ini:\n${formatDateDisplay(selectedDate)}\n\nIni akan membatalkan semua booking customer yang sudah ada.\n\nLanjutkan?`)) return
+  setPendingAction('closeAll')
+  setClosureReason('')
+  setShowReasonModal(true)
+}
+
+async function executeAdminAction() {
   setShowReasonModal(false)
   try {
     if (pendingAction === 'close') {
@@ -281,7 +285,7 @@ export default function Booking({ user }) {
         price: 0,
         payment_status: 'free',
         payment_method: 'admin',
-        closure_reason: closureReason || null  // ✅ Reason included
+        closure_reason: closureReason || null
       }))
       
       const { error } = await supabase.from('bookings').insert(bookingsToInsert)
@@ -312,7 +316,7 @@ export default function Booking({ user }) {
         price: 0,
         payment_status: 'free',
         payment_method: 'admin',
-        closure_reason: closureReason || 'Tutup Hari Ini'  // ✅ Reason included
+        closure_reason: closureReason || 'Tutup Hari Ini'
       }))
       
       const { error } = await supabase.from('bookings').insert(bookingsToInsert)
@@ -330,42 +334,42 @@ export default function Booking({ user }) {
   setPendingAction(null)
   setClosureReason('')
 }
+
+async function handleAdminReopen(slot) {
+  if (!isAdmin || !slot.isBooked || !slot.isAdminBooking) {
+    showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
+    return
+  }
+  if (!window.confirm(`Apakah Anda yakin ingin membuka slot ini?\n\n${formatDateDisplay(selectedDate)}\n${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`)) return
+
+  const { error } = await supabase.from('bookings').delete().eq('id', slot.bookingId)
+  if (error) {
+    showToast('❌ Gagal membuka slot: ' + error.message, 'error')
+    return
+  }
+  showToast('✅ Slot dibuka kembali', 'success')
+  loadBookings()
+}
+
+async function handleReopenEntireDay() {
+  if (!isAdmin) return
+  const adminBookings = bookings.filter(b => b.is_admin_booking === true)
+  if (adminBookings.length === 0) {
+    showToast('ℹ️ Tidak ada slot admin untuk dibuka', 'info')
+    return
+  }
+  if (!window.confirm(`Apakah Anda yakin ingin membuka SEMUA slot yang ditutup admin?\n\n${formatDateDisplay(selectedDate)}\nJumlah slot: ${adminBookings.length}`)) return
+
+  const ids = adminBookings.map(b => b.id)
+  const { error } = await supabase.from('bookings').delete().in('id', ids)
+  if (error) {
+    showToast('❌ Gagal membuka slot: ' + error.message, 'error')
+    return
+  }
+  showToast(`✅ ${ids.length} slot dibuka kembali`, 'success')
+  loadBookings()
+}
   
-  async function handleAdminReopen(slot) {
-    if (!isAdmin || !slot.isBooked || !slot.isAdminBooking) {
-      showToast('❌ Anda hanya bisa membuka slot admin sendiri', 'warning')
-      return
-    }
-    if (!window.confirm(`Apakah Anda yakin ingin membuka slot ini?\n\n${formatDateDisplay(selectedDate)}\n${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`)) return
-
-    const { error } = await supabase.from('bookings').delete().eq('id', slot.bookingId)
-    if (error) {
-      showToast('❌ Gagal membuka slot: ' + error.message, 'error')
-      return
-    }
-    showToast('✅ Slot dibuka kembali', 'success')
-    loadBookings()
-  }
-
-  async function handleReopenEntireDay() {
-    if (!isAdmin) return
-    const adminBookings = bookings.filter(b => b.is_admin_booking === true)
-    if (adminBookings.length === 0) {
-      showToast('ℹ️ Tidak ada slot admin untuk dibuka', 'info')
-      return
-    }
-    if (!window.confirm(`Apakah Anda yakin ingin membuka SEMUA slot yang ditutup admin?\n\n${formatDateDisplay(selectedDate)}\nJumlah slot: ${adminBookings.length}`)) return
-
-    const ids = adminBookings.map(b => b.id)
-    const { error } = await supabase.from('bookings').delete().in('id', ids)
-    if (error) {
-      showToast('❌ Gagal membuka slot: ' + error.message, 'error')
-      return
-    }
-    showToast(`✅ ${ids.length} slot dibuka kembali`, 'success')
-    loadBookings()
-  }
-
   const range = getSelectedRange()
   const totalPrice = getTotalPrice()
   const visibleSlots = bookingSlots.filter(slot => !slot.isPast)
