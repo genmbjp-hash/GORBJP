@@ -56,7 +56,20 @@ Terima kasih. 🙏`
             <p style={{ fontSize: '14px', fontWeight: 600, color: '#065F46', marginBottom: '4px' }}>
               Scan QRIS untuk membayar
             </p>
-            <div className="qris-box" aria-label="QRIS"></div>
+            <img 
+              src="/qris.png" 
+              alt="QRIS" 
+              style={{ 
+                maxWidth: '180px', 
+                width: '100%', 
+                height: 'auto',
+                margin: '0 auto',
+                display: 'block',
+                borderRadius: '8px',
+                border: '6px solid #fff',
+                boxShadow: '0 0 0 1px #86EFAC'
+              }} 
+            />
             <small>Total: <strong>{formatPrice(booking.price)}</strong></small>
           </div>
 
