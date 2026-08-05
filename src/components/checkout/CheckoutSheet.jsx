@@ -1,5 +1,3 @@
-// src/components/checkout/CheckoutSheet.jsx
-
 import React, { useState } from 'react'
 import { createBooking } from '../../lib/api'
 import { calculateDiscount, calculateFinalPrice, formatPrice } from '../../lib/price'
@@ -60,12 +58,6 @@ export default function CheckoutSheet({
   const handleConfirmBooking = async () => {
     setLoading(true)
 
-    // ✅ Check if user exists
-  if (!user || !user.id) {
-    showToast('❌ Silakan login terlebih dahulu', 'error')
-    setLoading(false)
-    return
-  }
     const dateStr = selectedDate.toISOString().split('T')[0]
     const result = await createBooking(
       user.id,
