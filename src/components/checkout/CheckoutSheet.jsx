@@ -352,13 +352,6 @@ export default function CheckoutSheet({
             </>
           )}
 
-          {/* ===== NOTE ===== */}
-          <div className="note" style={{ marginTop: '16px', fontSize: '0.9em', color: 'var(--gray-600)' }}>
-            {isResuming
-              ? 'ℹ️ Lanjutkan pembayaran untuk booking yang sudah dibuat.'
-              : 'ℹ️ Booking aktif setelah admin mengonfirmasi pembayaran. PIN akses dikirim otomatis.'}
-          </div>
-
           {/* ===== BUTTON ===== */}
           <button
             className="btn btn-primary"
