@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { createBooking, validateVoucher } from '../../lib/api'
+import { createBooking, validateVoucher, createPaymentLink } from '../../lib/api'
 import { calculateDiscount, calculateFinalPrice, formatPrice } from '../../lib/price'
 import { useToast } from '../../hooks/useToast'
 
@@ -53,24 +53,19 @@ export default function CheckoutSheet({
 
   if (!start || !end || !duration) return null
 
-  // ✅ Resume mode: use existing booking data
-  const isResumingWithDonation = isResuming && existingBooking?.donation_amount > 0
-  const isResumingWithVoucher = isResuming && existingBooking?.voucher_id
-
   const finalPrice = voucher ? calculateFinalPrice(price, voucher) : price
   const discountAmount = voucher ? calculateDiscount(price, voucher) : 0
   const donationInt = parseInt(donationAmount) || 0
   const totalWithDonation = addDonation ? finalPrice + donationInt : finalPrice
 
-  // ✅ Resume mode: use existing donation amount
+  // Resume mode: use existing data
+  const isReadOnly = isResuming && existingBooking
   const displayDonation = isResuming && existingBooking?.donation_amount > 0
     ? existingBooking.donation_amount
     : donationInt
-
   const displayTotal = isResuming && existingBooking
     ? existingBooking.price
     : totalWithDonation
-
   const displayDiscount = isResuming && existingBooking?.discount_applied > 0
     ? existingBooking.discount_applied
     : discountAmount
@@ -112,6 +107,7 @@ export default function CheckoutSheet({
     setLoading(true)
 
     try {
+      // If resuming existing booking, just go to payment
       if (isResuming && existingBooking) {
         if (onPayment) await onPayment()
         return
@@ -133,15 +129,37 @@ export default function CheckoutSheet({
       if (!result || result.error) {
         const errorMsg = result?.error?.message || 'Gagal membuat booking'
         showToast('❌ ' + errorMsg, 'error')
+        setLoading(false)
         return
       }
 
       if (onBookingCreated) await onBookingCreated(result.data)
-      if (onPayment) await onPayment()
+
+      // ✅ Create Midtrans payment link
+      const paymentResult = await createPaymentLink(
+        result.data.id,
+        result.data.price,
+        {
+          display_name: user?.display_name,
+          full_name: user?.full_name,
+          email: user?.email,
+          phone: user?.phone
+        },
+        addDonation ? donationInt : 0
+      )
+
+      if (paymentResult.success) {
+        window.location.href = paymentResult.payment_url
+        return
+      } else {
+        showToast('❌ ' + (paymentResult.error || 'Gagal membuat link pembayaran'), 'error')
+        setLoading(false)
+      }
 
     } catch (error) {
       console.error("Booking checkout error:", error)
       showToast('❌ Terjadi kesalahan: ' + (error.message || 'Sistem error'), 'error')
+      setLoading(false)
     } finally {
       setLoading(false)
     }
@@ -157,9 +175,6 @@ export default function CheckoutSheet({
       setDonationAmount('')
     }
   }
-
-  // ✅ Check if this is resume mode
-  const isReadOnly = isResuming && existingBooking
 
   return (
     <>
@@ -198,13 +213,13 @@ export default function CheckoutSheet({
               <span className="v">{duration} Jam</span>
             </div>
 
-            {/* ✅ Total */}
+            {/* Total */}
             <div className="row" style={{ borderTop: '2px solid var(--primary)', paddingTop: '8px', marginTop: '4px' }}>
               <span className="k" style={{ fontWeight: 700 }}>💰 Total</span>
               <span className="total-v">{formatPrice(displayTotal)}</span>
             </div>
 
-            {/* ✅ Discount */}
+            {/* Discount */}
             {displayDiscount > 0 && (
               <div className="row" style={{ borderBottom: 'none', paddingTop: '4px' }}>
                 <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>🎫 Diskon</span>
@@ -216,7 +231,6 @@ export default function CheckoutSheet({
           {/* ===== RESUME MODE: READ-ONLY ===== */}
           {isReadOnly ? (
             <>
-              {/* Voucher (read-only) */}
               {existingBooking.voucher_id && (
                 <div style={{
                   background: '#F0FDF4',
@@ -229,7 +243,7 @@ export default function CheckoutSheet({
                   justifyContent: 'space-between'
                 }}>
                   <span style={{ fontSize: '14px', color: '#065F46' }}>
-                    🎫 Voucher diterapkan
+                    🎫 Voucher
                   </span>
                   <span className="badge badge-active" style={{ fontWeight: 600 }}>
                     ✅ Aktif
@@ -237,7 +251,6 @@ export default function CheckoutSheet({
                 </div>
               )}
 
-              {/* Donation (read-only) */}
               {existingBooking.donation_amount > 0 && (
                 <div style={{
                   background: '#F3E8FF',
@@ -258,7 +271,6 @@ export default function CheckoutSheet({
                 </div>
               )}
 
-              {/* Resume note */}
               <div style={{
                 marginTop: '12px',
                 padding: '10px 14px',
@@ -269,13 +281,13 @@ export default function CheckoutSheet({
                 color: '#1E40AF',
                 textAlign: 'center'
               }}>
-                ℹ️ Voucher diskon dan/atau donasi tidak dapat diubah. Silahkan batalkan pesanan ini dan buat pesanan baru jika ingin melakukan perubahan.
+                ℹ️ Voucher diskon dan/atau donasi tidak dapat diubah.
+                Silahkan batalkan pesanan ini dan buat pesanan baru jika ingin melakukan perubahan.
               </div>
             </>
           ) : (
-            /* ===== NORMAL MODE: EDITABLE ===== */
             <>
-              {/* VOUCHER */}
+              {/* ===== VOUCHER ===== */}
               {!isResuming && (
                 <>
                   <button className="voucher-toggle" onClick={() => setShowVoucher(!showVoucher)}>
@@ -289,9 +301,9 @@ export default function CheckoutSheet({
                           className="voucher-input"
                           placeholder="Masukkan kode"
                           value={voucherCode}
-                          onChange={(e) => setVoucherCode(e.target.value)}
+                          onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
                           disabled={applying || !!voucher}
-                          style={{ flex: 1, textTransform: 'uppercase' }}
+                          style={{ flex: 1 }}
                         />
                         {voucher ? (
                           <button className="btn btn-secondary btn-sm" onClick={handleRemoveVoucher} disabled={applying}>
@@ -310,7 +322,7 @@ export default function CheckoutSheet({
                 </>
               )}
 
-              {/* DONATION */}
+              {/* ===== DONATION ===== */}
               <div style={{ marginTop: '16px' }}>
                 <div className="row" style={{ borderBottom: 'none', padding: '8px 0' }}>
                   <span className="k" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -351,6 +363,13 @@ export default function CheckoutSheet({
               </div>
             </>
           )}
+
+          {/* ===== NOTE ===== */}
+          <div className="note" style={{ marginTop: '16px', fontSize: '0.9em', color: 'var(--gray-600)' }}>
+            {isResuming
+              ? 'ℹ️ Lanjutkan pembayaran untuk booking yang sudah dibuat.'
+              : 'ℹ️ Booking aktif setelah admin mengonfirmasi pembayaran. PIN akses dikirim otomatis.'}
+          </div>
 
           {/* ===== BUTTON ===== */}
           <button
