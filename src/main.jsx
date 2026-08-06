@@ -1,5 +1,4 @@
 // src/main.jsx
-
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
@@ -14,15 +13,12 @@ class ErrorBoundary extends React.Component {
     super(props)
     this.state = { hasError: false, error: null }
   }
-
   static getDerivedStateFromError(error) {
     return { hasError: true, error }
   }
-
   componentDidCatch(error, errorInfo) {
     console.error('Application Error:', error, errorInfo)
   }
-
   render() {
     if (this.state.hasError) {
       return (
@@ -61,7 +57,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
