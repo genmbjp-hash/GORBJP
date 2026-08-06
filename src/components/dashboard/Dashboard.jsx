@@ -68,7 +68,8 @@ const BookingItem = memo(function BookingItem({
   return (
     <div className="booking-item" style={{ 
       borderLeft: isPending ? '4px solid var(--warning)' : '4px solid transparent',
-      paddingLeft: '12px'
+      paddingLeft: '12px',
+      alignItems: 'flex-start'
     }}>
       <div className="booking-info">
         <div className="booking-date">{formatDate(booking.start_time)}</div>
@@ -83,37 +84,37 @@ const BookingItem = memo(function BookingItem({
           )}
         </div>
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '6px' }}>
         {isPending ? (
-          <div>
+          <>
             <button
               onClick={() => onContinuePayment(booking)}
               className="btn btn-warning btn-sm"
-              style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
+              style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
             >
               📖 Lanjutkan Pembayaran
             </button>
             <button
               onClick={() => onCancelPending(booking.id)}
               className="btn btn-danger btn-sm"
-              style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
+              style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
             >
               ❌ Batal
             </button>
-          </div>
+          </>
         ) : (
-          <div>
+          <>
             {booking.pin && <div className="booking-pin">{booking.pin}</div>}
             {(booking.status === 'active' || booking.status === 'pending') && (
               <button
                 onClick={() => onCancel(booking.id)}
                 className="btn btn-danger btn-sm"
-                style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
+                style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
               >
                 Batal
               </button>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
