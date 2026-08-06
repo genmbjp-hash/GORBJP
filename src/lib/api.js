@@ -166,9 +166,10 @@ export async function validateVoucher(code, duration) {
 export async function createBooking(userId, slotData, duration, voucherId) {
   const { date, hour } = slotData
 
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  // `date` arrives as a 'YYYY-MM-DD' local-date string (see
+  // CheckoutSheet's getLocalDateString), not a Date object — parse the
+  // parts directly instead of calling Date methods on it.
+  const [year, month, day] = date.split('-')
   const hours = String(hour).padStart(2, '0')
   const endHour = String(hour + duration).padStart(2, '0')
   
