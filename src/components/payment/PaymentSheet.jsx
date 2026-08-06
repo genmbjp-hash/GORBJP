@@ -111,34 +111,50 @@ Terima kasih. 🙏`
 
           {!showFallback ? (
             <>
-              <div className="qris" style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '14px', fontWeight: 600, color: '#065F46', marginBottom: '4px' }}>
-                  💳 Bayar via QRIS (Otomatis)
-                </p>
-                <p style={{ fontSize: '32px', marginBottom: '8px' }}>🔴</p>
-                <small>Total: <strong>{formatPrice(booking.price)}</strong></small>
-                {booking.donation_amount > 0 && (
-                  <small style={{ display: 'block', color: '#8B5CF6', marginTop: '4px' }}>
-                    🙏 Termasuk donasi {formatPrice(booking.donation_amount)}
-                  </small>
-                )}
-                <div style={{ marginTop: '16px' }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handlePayWithMidtrans}
-                    disabled={loading}
-                  >
-                    {loading ? '⏳ Memproses...' : '🔴 Bayar via QRIS'}
-                  </button>
+              {/* ===== PAYMENT SUMMARY ===== */}
+              <div className="summary">
+                <div className="row">
+                  <span className="k">📅 Tanggal</span>
+                  <span className="v">{formatDate(booking.start_time)}</span>
                 </div>
-                <p style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '12px' }}>
+                <div className="row">
+                  <span className="k">⏰ Waktu</span>
+                  <span className="v">{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</span>
+                </div>
+                <div className="row">
+                  <span className="k">⏱️ Durasi</span>
+                  <span className="v">{booking.duration_hours} Jam</span>
+                </div>
+                {booking.donation_amount > 0 && (
+                  <div className="row">
+                    <span className="k">🙏 Donasi</span>
+                    <span className="v" style={{ color: '#8B5CF6' }}>{formatPrice(booking.donation_amount)}</span>
+                  </div>
+                )}
+                <div className="row" style={{ borderTop: '2px solid var(--primary)', paddingTop: '8px', marginTop: '4px' }}>
+                  <span className="k" style={{ fontWeight: 700 }}>💰 Total</span>
+                  <span className="total-v">{formatPrice(booking.price)}</span>
+                </div>
+              </div>
+
+              {/* ===== PAYMENT BUTTON ===== */}
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                <p style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '12px' }}>
                   Anda akan diarahkan ke halaman pembayaran Midtrans.
                   <br />Pembayaran otomatis dikonfirmasi.
                 </p>
+                <button
+                  className="btn btn-primary"
+                  onClick={handlePayWithMidtrans}
+                  disabled={loading}
+                  style={{ width: '100%' }}
+                >
+                  {loading ? '⏳ Memproses...' : '🔴 Bayar via QRIS'}
+                </button>
               </div>
 
               {error && (
-                <div style={{ background: '#FEE2E2', padding: '12px', borderRadius: '8px', border: '1px solid #FCA5A5', marginBottom: '12px' }}>
+                <div style={{ background: '#FEE2E2', padding: '12px', borderRadius: '8px', border: '1px solid #FCA5A5', marginTop: '12px' }}>
                   <p style={{ fontSize: '14px', color: '#991B1B' }}>
                     ❌ {error}
                   </p>
@@ -154,6 +170,7 @@ Terima kasih. 🙏`
             </>
           ) : (
             <>
+              {/* ===== FALLBACK: QRIS + WhatsApp Manual ===== */}
               <div style={{ background: '#FEF3C7', padding: '12px', borderRadius: '8px', border: '1px solid #F59E0B', marginBottom: '12px' }}>
                 <p style={{ fontSize: '14px', color: '#92400E', fontWeight: 600 }}>
                   ⚠️ Mode Manual (Fallback)
@@ -217,7 +234,8 @@ Terima kasih. 🙏`
             </>
           )}
 
-          <button className="btn btn-outline" onClick={onCancelBooking || onClose}>
+          {/* ===== CANCEL BUTTON ===== */}
+          <button className="btn btn-outline" onClick={onCancelBooking || onClose} style={{ marginTop: '12px' }}>
             ❌ Batalkan Pesanan
           </button>
           <p style={{ fontSize: '11px', color: 'var(--gray-400)', textAlign: 'center', marginTop: '8px' }}>
