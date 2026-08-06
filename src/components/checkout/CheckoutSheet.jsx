@@ -53,10 +53,27 @@ export default function CheckoutSheet({
 
   if (!start || !end || !duration) return null
 
+  // ✅ Resume mode: use existing booking data
+  const isResumingWithDonation = isResuming && existingBooking?.donation_amount > 0
+  const isResumingWithVoucher = isResuming && existingBooking?.voucher_id
+
   const finalPrice = voucher ? calculateFinalPrice(price, voucher) : price
   const discountAmount = voucher ? calculateDiscount(price, voucher) : 0
   const donationInt = parseInt(donationAmount) || 0
   const totalWithDonation = addDonation ? finalPrice + donationInt : finalPrice
+
+  // ✅ Resume mode: use existing donation amount
+  const displayDonation = isResuming && existingBooking?.donation_amount > 0
+    ? existingBooking.donation_amount
+    : donationInt
+
+  const displayTotal = isResuming && existingBooking
+    ? existingBooking.price
+    : totalWithDonation
+
+  const displayDiscount = isResuming && existingBooking?.discount_applied > 0
+    ? existingBooking.discount_applied
+    : discountAmount
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
@@ -141,6 +158,9 @@ export default function CheckoutSheet({
     }
   }
 
+  // ✅ Check if this is resume mode
+  const isReadOnly = isResuming && existingBooking
+
   return (
     <>
       <div className={`overlay ${isOpen ? 'show' : ''}`} onClick={onClose}></div>
@@ -178,100 +198,164 @@ export default function CheckoutSheet({
               <span className="v">{duration} Jam</span>
             </div>
 
-            {/* ✅ Total — always shows final price with donation */}
+            {/* ✅ Total */}
             <div className="row" style={{ borderTop: '2px solid var(--primary)', paddingTop: '8px', marginTop: '4px' }}>
               <span className="k" style={{ fontWeight: 700 }}>💰 Total</span>
-              <span className="total-v">{formatPrice(totalWithDonation)}</span>
+              <span className="total-v">{formatPrice(displayTotal)}</span>
             </div>
 
-            {/* ✅ Discount — only shown when voucher is applied */}
-            {discountAmount > 0 && (
+            {/* ✅ Discount */}
+            {displayDiscount > 0 && (
               <div className="row" style={{ borderBottom: 'none', paddingTop: '4px' }}>
                 <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>🎫 Diskon</span>
-                <span className="v" style={{ color: 'var(--success)', fontSize: '14px' }}>- {formatPrice(discountAmount)}</span>
+                <span className="v" style={{ color: 'var(--success)', fontSize: '14px' }}>- {formatPrice(displayDiscount)}</span>
               </div>
             )}
           </div>
 
-          {/* ===== VOUCHER ===== */}
-          {!isResuming && (
+          {/* ===== RESUME MODE: READ-ONLY ===== */}
+          {isReadOnly ? (
             <>
-              <button className="voucher-toggle" onClick={() => setShowVoucher(!showVoucher)}>
-                🎫 Punya kode voucher? <span className="chev">{showVoucher ? '▲' : '▼'}</span>
-              </button>
-
-              {showVoucher && (
-                <div className="voucher-body show">
-                  <div className="voucher-row" style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      className="voucher-input"
-                      placeholder="Masukkan kode"
-                      value={voucherCode}
-                      onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                      disabled={applying || !!voucher}
-                      style={{ flex: 1 }}
-                    />
-                    {voucher ? (
-                      <button className="btn btn-secondary btn-sm" onClick={handleRemoveVoucher} disabled={applying}>
-                        Hapus
-                      </button>
-                    ) : (
-                      <button className="btn btn-secondary btn-sm" onClick={handleApplyVoucher} disabled={applying}>
-                        {applying ? '⏳' : 'Pakai'}
-                      </button>
-                    )}
-                  </div>
-                  {voucherError && <div className="voucher-msg err" style={{ color: 'red', marginTop: '4px' }}>{voucherError}</div>}
-                  {voucher && <div className="voucher-msg ok" style={{ color: 'green', marginTop: '4px' }}>✅ Voucher "{voucher.code}" diterapkan!</div>}
+              {/* Voucher (read-only) */}
+              {existingBooking.voucher_id && (
+                <div style={{
+                  background: '#F0FDF4',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #86EFAC',
+                  marginTop: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <span style={{ fontSize: '14px', color: '#065F46' }}>
+                    🎫 Voucher diterapkan
+                  </span>
+                  <span className="badge badge-active" style={{ fontWeight: 600 }}>
+                    ✅ Aktif
+                  </span>
                 </div>
               )}
+
+              {/* Donation (read-only) */}
+              {existingBooking.donation_amount > 0 && (
+                <div style={{
+                  background: '#F3E8FF',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #D8B4FE',
+                  marginTop: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <span style={{ fontSize: '14px', color: '#6B21A8' }}>
+                    🙏 Donasi
+                  </span>
+                  <span style={{ fontWeight: 600, color: '#6B21A8' }}>
+                    {formatPrice(existingBooking.donation_amount)}
+                  </span>
+                </div>
+              )}
+
+              {/* Resume note */}
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 14px',
+                background: '#EFF6FF',
+                borderRadius: '8px',
+                border: '1px solid #93C5FD',
+                fontSize: '13px',
+                color: '#1E40AF',
+                textAlign: 'center'
+              }}>
+                ℹ️ Detail pesanan sudah tetap. Lanjutkan ke pembayaran.
+              </div>
+            </>
+          ) : (
+            /* ===== NORMAL MODE: EDITABLE ===== */
+            <>
+              {/* VOUCHER */}
+              {!isResuming && (
+                <>
+                  <button className="voucher-toggle" onClick={() => setShowVoucher(!showVoucher)}>
+                    🎫 Punya kode voucher? <span className="chev">{showVoucher ? '▲' : '▼'}</span>
+                  </button>
+
+                  {showVoucher && (
+                    <div className="voucher-body show">
+                      <div className="voucher-row" style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          className="voucher-input"
+                          placeholder="Masukkan kode"
+                          value={voucherCode}
+                          onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                          disabled={applying || !!voucher}
+                          style={{ flex: 1 }}
+                        />
+                        {voucher ? (
+                          <button className="btn btn-secondary btn-sm" onClick={handleRemoveVoucher} disabled={applying}>
+                            Hapus
+                          </button>
+                        ) : (
+                          <button className="btn btn-secondary btn-sm" onClick={handleApplyVoucher} disabled={applying}>
+                            {applying ? '⏳' : 'Pakai'}
+                          </button>
+                        )}
+                      </div>
+                      {voucherError && <div className="voucher-msg err" style={{ color: 'red', marginTop: '4px' }}>{voucherError}</div>}
+                      {voucher && <div className="voucher-msg ok" style={{ color: 'green', marginTop: '4px' }}>✅ Voucher "{voucher.code}" diterapkan!</div>}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* DONATION */}
+              <div style={{ marginTop: '16px' }}>
+                <div className="row" style={{ borderBottom: 'none', padding: '8px 0' }}>
+                  <span className="k" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={addDonation}
+                      onChange={(e) => handleDonationToggle(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#8B5CF6', cursor: 'pointer' }}
+                    />
+                    🙏 Tambahkan donasi (opsional)
+                  </span>
+                  {addDonation && donationInt > 0 && (
+                    <span className="v" style={{ color: '#8B5CF6' }}>
+                      + {formatPrice(donationInt)}
+                    </span>
+                  )}
+                </div>
+
+                {addDonation && (
+                  <div className="row" style={{ borderBottom: 'none', paddingTop: '0' }}>
+                    <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                      Masukkan nominal
+                    </span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="Contoh: 25000"
+                      value={donationAmount}
+                      onChange={(e) => setDonationAmount(e.target.value)}
+                      min="1"
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '14px',
+                        width: '150px',
+                        textAlign: 'right',
+                        border: '1px solid var(--gray-300)',
+                        borderRadius: '6px'
+                      }}
+                      autoFocus={addDonation}
+                    />
+                  </div>
+                )}
+              </div>
             </>
           )}
-
-          {/* ===== DONATION ===== */}
-          <div style={{ marginTop: '16px' }}>
-            <div className="row" style={{ borderBottom: 'none', padding: '8px 0' }}>
-              <span className="k" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={addDonation}
-                  onChange={(e) => handleDonationToggle(e.target.checked)}
-                  style={{ width: '18px', height: '18px', accentColor: '#8B5CF6', cursor: 'pointer' }}
-                />
-                🙏 Tambahkan donasi (opsional)
-              </span>
-              {addDonation && donationInt > 0 && (
-                <span className="v" style={{ color: '#8B5CF6' }}>
-                  + {formatPrice(donationInt)}
-                </span>
-              )}
-            </div>
-
-            {addDonation && (
-              <div className="row" style={{ borderBottom: 'none', paddingTop: '0' }}>
-                <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-                  Masukkan nominal
-                </span>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="Contoh: 25000"
-                  value={donationAmount}
-                  onChange={(e) => setDonationAmount(e.target.value)}
-                  min="1"
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: '14px',
-                    width: '150px',
-                    textAlign: 'right',
-                    border: '1px solid var(--gray-300)',
-                    borderRadius: '6px'
-                  }}
-                  autoFocus={addDonation}
-                />
-              </div>
-            )}
-          </div>
 
           {/* ===== NOTE ===== */}
           <div className="note" style={{ marginTop: '16px', fontSize: '0.9em', color: 'var(--gray-600)' }}>
