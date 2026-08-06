@@ -12,6 +12,7 @@ const AdminUsers = lazy(() => import('./AdminUsers'))
 const AdminVouchers = lazy(() => import('./AdminVouchers'))
 const AdminBookings = lazy(() => import('./AdminBookings'))
 const AdminMasterPin = lazy(() => import('./AdminMasterPin'))
+const AdminAnalytics = lazy(() => import('./AdminAnalytics'))
 
 // ✅ Loading fallback
 function TabLoading() {
@@ -79,6 +80,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState(null)
+  const [activeTab, setActiveTab] = useState('dashboard')
   const navigate = useNavigate()
   const { showToast } = useToast()
 
@@ -212,6 +214,16 @@ export default function Admin() {
 
   const statsDisplay = useMemo(() => stats, [stats])
 
+  // ✅ Tab definitions
+  const tabs = [
+    { id: 'dashboard', label: '📊 Dashboard' },
+    { id: 'users', label: '👥 Users' },
+    { id: 'vouchers', label: '🎫 Vouchers' },
+    { id: 'pin', label: '🔑 PIN' },
+    { id: 'lamp', label: '💡 Lampu' },
+    { id: 'bookings', label: '📋 Bookings' },
+  ]
+
   // ✅ Show loading state
   if (loading) {
     return (
@@ -273,7 +285,7 @@ export default function Admin() {
         </button>
       </div>
 
-      {/* ===== STATS ===== */}
+      {/* ===== STATS (always visible) ===== */}
       <div className="stats-grid" style={{ 
         display: 'grid', 
         gridTemplateColumns: 'repeat(4, 1fr)', 
@@ -298,52 +310,102 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* ===== LAZY LOADED COMPONENTS ===== */}
-      <Suspense fallback={<TabLoading />}>
-        <AdminUsers />
-      </Suspense>
-
-      <Suspense fallback={<TabLoading />}>
-        <div className="card" style={{ border: '2px solid var(--warning)', padding: '16px' }}>
-          <AdminMasterPin />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<TabLoading />}>
-        <AdminVouchers />
-      </Suspense>
-
-      {/* ===== DEVICE STATUS ===== */}
-      <DeviceStatus 
-        deviceStatus={deviceStatus} 
-        onForceLamp={handleForceLamp} 
-      />
-
-      {/* ===== BOOKINGS ===== */}
-      <div className="card" style={{ padding: '16px' }}>
-        <div className="card-header" style={{ marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-          <span className="card-title" style={{ fontSize: '16px' }}>📋 Semua Pesanan</span>
-          <button 
-            onClick={handleRefresh} 
-            className="btn btn-outline btn-sm" 
-            style={{ 
-              width: 'auto', 
-              minHeight: '34px', 
-              padding: '4px 14px', 
-              fontSize: '12px',
+      {/* ===== TABS ===== */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '6px', 
+        flexWrap: 'wrap',
+        marginBottom: '14px',
+        borderBottom: '2px solid var(--gray-100)',
+        paddingBottom: '10px'
+      }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '8px 16px',
+              fontSize: '13px',
+              fontWeight: activeTab === tab.id ? 700 : 500,
+              color: activeTab === tab.id ? 'var(--primary)' : 'var(--gray-500)',
+              background: activeTab === tab.id ? 'var(--primary-bg)' : 'transparent',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px'
+              justifyContent: 'center'
             }}
-            disabled={refreshing}
           >
-            {refreshing ? '⏳' : '🔄'} Refresh
+            {tab.label}
           </button>
-        </div>
-        <Suspense fallback={<TabLoading />}>
-          <AdminBookings bookings={bookings} onRefresh={() => loadBookings()} />
-        </Suspense>
+        ))}
+      </div>
+
+      {/* ===== TAB CONTENT ===== */}
+      <div>
+        {activeTab === 'dashboard' && (
+          <Suspense fallback={<TabLoading />}>
+            <AdminAnalytics />
+          </Suspense>
+        )}
+
+        {activeTab === 'users' && (
+          <Suspense fallback={<TabLoading />}>
+            <AdminUsers />
+          </Suspense>
+        )}
+
+        {activeTab === 'vouchers' && (
+          <Suspense fallback={<TabLoading />}>
+            <AdminVouchers />
+          </Suspense>
+        )}
+
+        {activeTab === 'pin' && (
+          <Suspense fallback={<TabLoading />}>
+            <div className="card" style={{ border: '2px solid var(--warning)', padding: '16px' }}>
+              <AdminMasterPin />
+            </div>
+          </Suspense>
+        )}
+
+        {activeTab === 'lamp' && (
+          <DeviceStatus 
+            deviceStatus={deviceStatus} 
+            onForceLamp={handleForceLamp} 
+          />
+        )}
+
+        {activeTab === 'bookings' && (
+          <div className="card" style={{ padding: '16px' }}>
+            <div className="card-header" style={{ marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <span className="card-title" style={{ fontSize: '16px' }}>📋 Semua Pesanan</span>
+              <button 
+                onClick={handleRefresh} 
+                className="btn btn-outline btn-sm" 
+                style={{ 
+                  width: 'auto', 
+                  minHeight: '34px', 
+                  padding: '4px 14px', 
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px'
+                }}
+                disabled={refreshing}
+              >
+                {refreshing ? '⏳' : '🔄'} Refresh
+              </button>
+            </div>
+            <Suspense fallback={<TabLoading />}>
+              <AdminBookings bookings={bookings} onRefresh={() => loadBookings()} />
+            </Suspense>
+          </div>
+        )}
       </div>
     </div>
   )
