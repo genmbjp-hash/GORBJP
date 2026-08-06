@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase, getBookingsForDate, completeExpiredBookings } from '../../lib/supabase'
-import { useToast } from '../../contexts/ToastContext'
+import { useToast } from '../../hooks/useToast'
 import { calculatePrice, formatPrice } from '../../lib/price'
 import SlotList from './SlotList'
 import StickyCart from './StickyCart'
