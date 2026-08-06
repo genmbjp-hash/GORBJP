@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { createVoucher, deactivateVoucher, deleteVoucher, updateVoucher } from '../../lib/api'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 
 // ============================================
 // VOUCHER ITEM COMPONENT (memoized)
