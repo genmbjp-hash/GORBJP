@@ -1,5 +1,3 @@
-// src/components/PaymentStatus.jsx
-
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -11,12 +9,25 @@ export default function PaymentStatus() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
+    
+    // ✅ Log ALL params to see what Midtrans sends
+    console.log('🔵 All URL params:', Object.fromEntries(params.entries()))
+    
     const transactionStatus = params.get('transaction_status')
+    const statusCode = params.get('status_code')
     const orderId = params.get('order_id')
 
-    console.log('Payment status:', transactionStatus, 'Order:', orderId)
+    console.log('🔵 transaction_status:', transactionStatus)
+    console.log('🔵 status_code:', statusCode)
+    console.log('🔵 order_id:', orderId)
 
+    // ✅ Use status_code if transaction_status is not available
     if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
+      setStatus('success')
+      setMessage('✅ Pembayaran berhasil! PIN akses akan segera dikirim.')
+      setTimeout(() => navigate('/dashboard'), 5000)
+    } else if (statusCode === '200' || statusCode === '201') {
+      // ✅ Midtrans uses status_code for success
       setStatus('success')
       setMessage('✅ Pembayaran berhasil! PIN akses akan segera dikirim.')
       setTimeout(() => navigate('/dashboard'), 5000)
@@ -27,8 +38,14 @@ export default function PaymentStatus() {
       setStatus('failed')
       setMessage('❌ Pembayaran gagal atau dibatalkan. Silakan coba lagi.')
     } else {
-      setStatus('info')
-      setMessage('ℹ️ Status pembayaran belum diketahui. Cek Dashboard untuk informasi lebih lanjut.')
+      // ✅ Also check status_code for other cases
+      if (statusCode === '400' || statusCode === '401' || statusCode === '500') {
+        setStatus('failed')
+        setMessage('❌ Pembayaran gagal. Silakan coba lagi.')
+      } else {
+        setStatus('info')
+        setMessage('ℹ️ Status pembayaran belum diketahui. Cek Dashboard untuk informasi lebih lanjut.')
+      }
     }
   }, [location, navigate])
 
