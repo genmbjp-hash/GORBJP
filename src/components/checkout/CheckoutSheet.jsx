@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { createBooking, validateVoucher } from '../../lib/api'
 import { calculateDiscount, calculateFinalPrice, formatPrice } from '../../lib/price'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 
 function getLocalDateString(date) {
   if (!date) return ''
