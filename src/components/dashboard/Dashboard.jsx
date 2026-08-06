@@ -41,8 +41,10 @@ function getPaymentBadge(paymentStatus, discountApplied) {
     'free': { bg: '#E0E7FF', color: '#3730A3', label: '🆓 Gratis' },
     'paid': { bg: '#D1FAE5', color: '#065F46', label: '💰 Dibayar' },
     'pending': { bg: '#FEF3C7', color: '#92400E', label: '⏳ Pending' },
+    'failed': { bg: '#FEE2E2', color: '#991B1B', label: '❌ Gagal' },
   }
-  const style = styles[paymentStatus] || styles['pending']
+  const style = styles[paymentStatus]
+  if (!style) return null
   return (
     <span className="badge" style={{ marginLeft: '4px', background: style.bg, color: style.color }}>
       {style.label}
@@ -73,7 +75,7 @@ const BookingItem = memo(function BookingItem({
         <div className="booking-time">{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</div>
         <div style={{ marginTop: '4px' }}>
           {getStatusBadge(booking.status)}
-          {getPaymentBadge(booking.payment_status, booking.discount_applied)}
+          {booking.status !== 'cancelled' && getPaymentBadge(booking.payment_status, booking.discount_applied)}
           {hasVoucher && booking.discount_applied > 0 && (
             <span style={{ marginLeft: '4px', fontSize: '11px', color: 'var(--gray-500)' }}>
               (Diskon Rp {booking.discount_applied.toLocaleString()})
@@ -127,7 +129,7 @@ export default function Dashboard({ user, profile }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const navigate = useNavigate()
-  const showToast = useToast()
+  const { showToast } = useToast()
 
   // ✅ Memoized loadBookings with useCallback
   const loadBookings = useCallback(async (showRefresh = false) => {
