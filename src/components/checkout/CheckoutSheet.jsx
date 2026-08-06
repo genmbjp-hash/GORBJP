@@ -34,12 +34,10 @@ export default function CheckoutSheet({
   const [applying, setApplying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showVoucher, setShowVoucher] = useState(false)
-  // ✅ Donation states
   const [addDonation, setAddDonation] = useState(false)
   const [donationAmount, setDonationAmount] = useState('')
   const { showToast } = useToast()
 
-  // Clear errors when hiding the voucher input
   useEffect(() => {
     if (!showVoucher) {
       setVoucherError('')
@@ -57,7 +55,6 @@ export default function CheckoutSheet({
 
   const finalPrice = voucher ? calculateFinalPrice(price, voucher) : price
   const discountAmount = voucher ? calculateDiscount(price, voucher) : 0
-  // ✅ Calculate donation and total
   const donationInt = parseInt(donationAmount) || 0
   const totalWithDonation = addDonation ? finalPrice + donationInt : finalPrice
 
@@ -98,25 +95,22 @@ export default function CheckoutSheet({
     setLoading(true)
 
     try {
-      // If resuming existing booking, just go to payment
       if (isResuming && existingBooking) {
         if (onPayment) await onPayment()
         return
       }
 
-      // Ensure 'start' is a valid Date before trying to call getHours()
       if (!(start instanceof Date) || isNaN(start)) {
         throw new Error("Waktu mulai (start time) tidak valid.")
       }
 
       const dateStr = getLocalDateString(selectedDate)
-      // ✅ Pass donation amount to createBooking
       const result = await createBooking(
         user.id,
         { date: dateStr, hour: start.getHours() },
         duration,
         voucher?.id || null,
-        addDonation ? donationInt : 0  // ✅ Donation amount
+        addDonation ? donationInt : 0
       )
 
       if (!result || result.error) {
@@ -132,7 +126,6 @@ export default function CheckoutSheet({
       console.error("Booking checkout error:", error)
       showToast('❌ Terjadi kesalahan: ' + (error.message || 'Sistem error'), 'error')
     } finally {
-      // This guarantees the button will stop loading, even if the code above crashes
       setLoading(false)
     }
   }
@@ -141,7 +134,6 @@ export default function CheckoutSheet({
     ? new Date(existingBooking.start_time)
     : selectedDate
 
-  // ✅ Handle donation toggle
   const handleDonationToggle = (checked) => {
     setAddDonation(checked)
     if (!checked) {
@@ -160,15 +152,16 @@ export default function CheckoutSheet({
           </span>
           <button className="sheet-close" onClick={onClose} disabled={loading}>✕</button>
         </div>
-        
+
         <div className="steps">
           <b>1 · Booking</b>
           <span className="bar active"></span>
           <span>2 · Bayar</span>
           <span className="bar"></span>
         </div>
-        
+
         <div className="sheet-pad">
+          {/* ===== SUMMARY ===== */}
           <div className="summary">
             <div className="row">
               <span className="k">📅 Tanggal</span>
@@ -184,85 +177,29 @@ export default function CheckoutSheet({
               <span className="k">⏱️ Durasi</span>
               <span className="v">{duration} Jam</span>
             </div>
-            <div className="row">
-              <span className="k">💰 Total</span>
-              <span className="total-v">
-                {discountAmount > 0 ? (
-                  <>
-                    <span className="strike" style={{ textDecoration: 'line-through', marginRight: '8px', color: 'var(--gray-500)' }}>
-                      {formatPrice(price)}
-                    </span>
-                    {formatPrice(finalPrice)}
-                  </>
-                ) : (
-                  formatPrice(finalPrice)
-                )}
-              </span>
-            </div>
-            {discountAmount > 0 && (
-              <div className="row" style={{ marginTop: '4px', borderTop: '1px solid var(--gray-200)', paddingTop: '8px' }}>
-                <span className="k">🎫 Diskon</span>
-                <span className="v" style={{ color: 'var(--success)' }}>- {formatPrice(discountAmount)}</span>
-              </div>
-            )}
 
-            {/* ✅ Donation Toggle */}
-            <div className="row" style={{ borderBottom: 'none', paddingTop: '8px' }}>
-              <span className="k" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={addDonation}
-                  onChange={(e) => handleDonationToggle(e.target.checked)}
-                  style={{ width: '18px', height: '18px', accentColor: '#8B5CF6', cursor: 'pointer' }}
-                />
-                🙏 Tambahkan donasi (opsional)
-              </span>
-              {addDonation && (
-                <span className="v" style={{ color: '#8B5CF6' }}>
-                  + {donationInt > 0 ? formatPrice(donationInt) : 'Rp 0'}
-                </span>
-              )}
-            </div>
-
-            {/* ✅ Donation Input (visible when checkbox is checked) */}
-            {addDonation && (
-              <div className="row" style={{ borderBottom: 'none', paddingTop: '4px' }}>
-                <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-                  Masukkan nominal
-                </span>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="Contoh: 25000"
-                  value={donationAmount}
-                  onChange={(e) => setDonationAmount(e.target.value)}
-                  min="1"
-                  style={{ 
-                    padding: '6px 12px', 
-                    fontSize: '14px', 
-                    width: '150px', 
-                    textAlign: 'right',
-                    border: '1px solid var(--gray-300)',
-                    borderRadius: '6px'
-                  }}
-                  autoFocus={addDonation}
-                />
-              </div>
-            )}
-
-            {/* ✅ Total with Donation */}
-            <div className="row" style={{ borderTop: '2px solid var(--primary)', paddingTop: '8px', marginTop: '8px' }}>
-              <span className="k" style={{ fontWeight: 700 }}>Total</span>
+            {/* ✅ Total — always shows final price with donation */}
+            <div className="row" style={{ borderTop: '2px solid var(--primary)', paddingTop: '8px', marginTop: '4px' }}>
+              <span className="k" style={{ fontWeight: 700 }}>💰 Total</span>
               <span className="total-v">{formatPrice(totalWithDonation)}</span>
             </div>
+
+            {/* ✅ Discount — only shown when voucher is applied */}
+            {discountAmount > 0 && (
+              <div className="row" style={{ borderBottom: 'none', paddingTop: '4px' }}>
+                <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>🎫 Diskon</span>
+                <span className="v" style={{ color: 'var(--success)', fontSize: '14px' }}>- {formatPrice(discountAmount)}</span>
+              </div>
+            )}
           </div>
 
+          {/* ===== VOUCHER ===== */}
           {!isResuming && (
             <>
               <button className="voucher-toggle" onClick={() => setShowVoucher(!showVoucher)}>
                 🎫 Punya kode voucher? <span className="chev">{showVoucher ? '▲' : '▼'}</span>
               </button>
-              
+
               {showVoucher && (
                 <div className="voucher-body show">
                   <div className="voucher-row" style={{ display: 'flex', gap: '8px' }}>
@@ -274,7 +211,6 @@ export default function CheckoutSheet({
                       disabled={applying || !!voucher}
                       style={{ flex: 1 }}
                     />
-                    
                     {voucher ? (
                       <button className="btn btn-secondary btn-sm" onClick={handleRemoveVoucher} disabled={applying}>
                         Hapus
@@ -292,15 +228,62 @@ export default function CheckoutSheet({
             </>
           )}
 
+          {/* ===== DONATION ===== */}
+          <div style={{ marginTop: '16px' }}>
+            <div className="row" style={{ borderBottom: 'none', padding: '8px 0' }}>
+              <span className="k" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={addDonation}
+                  onChange={(e) => handleDonationToggle(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: '#8B5CF6', cursor: 'pointer' }}
+                />
+                🙏 Tambahkan donasi (opsional)
+              </span>
+              {addDonation && donationInt > 0 && (
+                <span className="v" style={{ color: '#8B5CF6' }}>
+                  + {formatPrice(donationInt)}
+                </span>
+              )}
+            </div>
+
+            {addDonation && (
+              <div className="row" style={{ borderBottom: 'none', paddingTop: '0' }}>
+                <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                  Masukkan nominal
+                </span>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Contoh: 25000"
+                  value={donationAmount}
+                  onChange={(e) => setDonationAmount(e.target.value)}
+                  min="1"
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '14px',
+                    width: '150px',
+                    textAlign: 'right',
+                    border: '1px solid var(--gray-300)',
+                    borderRadius: '6px'
+                  }}
+                  autoFocus={addDonation}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ===== NOTE ===== */}
           <div className="note" style={{ marginTop: '16px', fontSize: '0.9em', color: 'var(--gray-600)' }}>
             {isResuming
               ? 'ℹ️ Lanjutkan pembayaran untuk booking yang sudah dibuat.'
               : 'ℹ️ Booking aktif setelah admin mengonfirmasi pembayaran. PIN akses dikirim otomatis.'}
           </div>
-          
-          <button 
-            className="btn btn-primary" 
-            onClick={handleConfirmBooking} 
+
+          {/* ===== BUTTON ===== */}
+          <button
+            className="btn btn-primary"
+            onClick={handleConfirmBooking}
             disabled={loading}
             style={{ width: '100%', marginTop: '16px' }}
           >
