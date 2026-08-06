@@ -214,14 +214,14 @@ export default function Admin() {
 
   const statsDisplay = useMemo(() => stats, [stats])
 
-  // ✅ Tab definitions
+  // ✅ Tab definitions with icons
   const tabs = [
     { id: 'dashboard', label: '📊 Dashboard' },
     { id: 'users', label: '👥 Users' },
-    { id: 'vouchers', label: '🎫 Vouchers' },
+    { id: 'vouchers', label: '🎫 Voucher' },
     { id: 'pin', label: '🔑 PIN' },
     { id: 'lamp', label: '💡 Lampu' },
-    { id: 'bookings', label: '📋 Bookings' },
+    { id: 'bookings', label: '📋 Booking' },
   ]
 
   // ✅ Show loading state
@@ -313,30 +313,35 @@ export default function Admin() {
       {/* ===== TABS ===== */}
       <div style={{ 
         display: 'flex', 
-        gap: '6px', 
+        gap: '4px', 
         flexWrap: 'wrap',
-        marginBottom: '14px',
-        borderBottom: '2px solid var(--gray-100)',
-        paddingBottom: '10px'
+        marginBottom: '16px',
+        background: 'var(--gray-50)',
+        borderRadius: '12px',
+        padding: '4px',
+        border: '1px solid var(--gray-200)'
       }}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding: '8px 16px',
-              fontSize: '13px',
-              fontWeight: activeTab === tab.id ? 700 : 500,
+              flex: 1,
+              minWidth: '60px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: activeTab === tab.id ? 600 : 500,
               color: activeTab === tab.id ? 'var(--primary)' : 'var(--gray-500)',
-              background: activeTab === tab.id ? 'var(--primary-bg)' : 'transparent',
+              background: activeTab === tab.id ? 'white' : 'transparent',
               border: 'none',
               borderRadius: '8px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
+              transition: 'all 0.2s ease',
               minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
             }}
           >
             {tab.label}
