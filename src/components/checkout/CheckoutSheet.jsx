@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { createBooking, validateVoucher, createPaymentLink } from '../../lib/api'
+import { createBooking, validateVoucher } from '../../lib/api'
 import { calculateDiscount, calculateFinalPrice, formatPrice } from '../../lib/price'
 import { useToast } from '../../hooks/useToast'
 
@@ -110,6 +110,7 @@ export default function CheckoutSheet({
       // If resuming existing booking, just go to payment
       if (isResuming && existingBooking) {
         if (onPayment) await onPayment()
+        setLoading(false)
         return
       }
 
@@ -135,26 +136,9 @@ export default function CheckoutSheet({
 
       if (onBookingCreated) await onBookingCreated(result.data)
 
-      // ✅ Create Midtrans payment link
-      const paymentResult = await createPaymentLink(
-        result.data.id,
-        result.data.price,
-        {
-          display_name: user?.display_name,
-          full_name: user?.full_name,
-          email: user?.email,
-          phone: user?.phone
-        },
-        addDonation ? donationInt : 0
-      )
-
-      if (paymentResult.success) {
-        window.location.href = paymentResult.payment_url
-        return
-      } else {
-        showToast('❌ ' + (paymentResult.error || 'Gagal membuat link pembayaran'), 'error')
-        setLoading(false)
-      }
+      // ✅ Open Payment Sheet instead of redirecting immediately
+      if (onPayment) await onPayment()
+      setLoading(false)
 
     } catch (error) {
       console.error("Booking checkout error:", error)
