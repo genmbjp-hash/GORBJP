@@ -269,7 +269,7 @@ export default function CheckoutSheet({
                 color: '#1E40AF',
                 textAlign: 'center'
               }}>
-                ℹ️ Detail pesanan sudah tetap. Lanjutkan ke pembayaran.
+                ℹ️ Voucher diskon dan/atau donasi tidak dapat diubah. Silahkan batalkan pesanan ini dan buat pesanan baru jika ingin melakukan perubahan.
               </div>
             </>
           ) : (
