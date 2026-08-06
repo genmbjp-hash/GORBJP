@@ -327,9 +327,6 @@ export default function Dashboard({ user, profile }) {
         <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
           👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!
         </h2>
-        <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: 0 }}>
-          Pesan venue dan dapatkan PIN Anda
-        </p>
       </div>
 
       {/* ===== STATS ===== */}
@@ -353,7 +350,7 @@ export default function Dashboard({ user, profile }) {
         </div>
       </div>
 
-      {/* ===== ACTION BUTTONS ===== */}
+      {/* ===== ACTION BUTTON ===== */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
         <Link 
           to="/booking" 
@@ -367,21 +364,6 @@ export default function Dashboard({ user, profile }) {
         >
           📖 Pesan Slot Baru
         </Link>
-        
-        <button 
-          onClick={() => {/* Will add donation sheet later */}} 
-          className="btn btn-success" 
-          style={{ 
-            width: '100%', 
-            minHeight: '48px',
-            fontSize: '15px',
-            fontWeight: 600,
-            background: '#8B5CF6',
-            border: 'none'
-          }}
-        >
-          🙏 Donasi
-        </button>
       </div>
 
       {/* ===== BOOKINGS LIST ===== */}
