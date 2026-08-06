@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import PaymentStatus from './components/PaymentStatus'
 
 // Lazy load components
 const Login = lazy(() => import('./components/Login'))
@@ -74,6 +75,7 @@ function App() {
                 <Navigate to="/" />
               )
             } />
+          <Route path="/payment-status" element={<PaymentStatus />} />
         </Routes>
       </Suspense>
     </div>
