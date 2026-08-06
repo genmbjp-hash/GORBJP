@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react'
+import React, { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 
@@ -9,12 +9,6 @@ const Dashboard = lazy(() => import('./components/dashboard/Dashboard'))
 const Booking = lazy(() => import('./components/booking/Booking'))
 const Admin = lazy(() => import('./components/admin/Admin'))
 const LandingPage = lazy(() => import('./components/LandingPage'))
-
-// Toast Context
-const ToastContext = React.createContext()
-export function useToast() {
-  return React.useContext(ToastContext)
-}
 
 // Loading Spinner Component
 function LoadingSpinner() {
@@ -28,16 +22,6 @@ function LoadingSpinner() {
 function App() {
   // ✅ Use auth from context (removed local auth state)
   const { user, profile, loading } = useAuth()
-  const [toasts, setToasts] = useState([])
-
-  // ✅ Toast system (kept from original)
-  function showToast(message, type = 'info') {
-    const id = Date.now()
-    setToasts(prev => [...prev, { id, message, type }])
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, 4000)
-  }
 
   // ✅ Route protection logic
   const isApproved = user && profile?.status === 'approved'
@@ -49,10 +33,9 @@ function App() {
   }
 
   return (
-    <ToastContext.Provider value={showToast}>
-      <div className="app">
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
+    <div className="app">
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
             <Route path="/" element={
               isApproved ? (
                 isAdmin ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
@@ -91,18 +74,9 @@ function App() {
                 <Navigate to="/" />
               )
             } />
-          </Routes>
-        </Suspense>
-
-        <div className="toast-wrap">
-          {toasts.map(toast => (
-            <div key={toast.id} className={`toast ${toast.type}`}>
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      </div>
-    </ToastContext.Provider>
+        </Routes>
+      </Suspense>
+    </div>
   )
 }
 
