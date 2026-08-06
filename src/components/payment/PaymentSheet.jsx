@@ -7,7 +7,7 @@ export default function PaymentSheet({ isOpen, onClose, onCancelBooking, booking
 
   if (!isOpen || !booking) return null
 
-  const ADMIN_PHONE = '628112012610'
+  const ADMIN_PHONE = '6281998889199'
   const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
 
   function formatTime(date) {
