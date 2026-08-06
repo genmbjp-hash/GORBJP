@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { supabase, getBookingsForDate, completeExpiredBookings } from '../../lib/supabase'
+import { supabase, getBookingsForDate, completeExpiredBookings, cancelPendingBooking } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
 import { calculatePrice, formatPrice } from '../../lib/price'
 import SlotList from './SlotList'
@@ -48,16 +48,7 @@ function formatTime(date) {
 export default function Booking({ user }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const toast = useToast()
-  
-  const showToast = useCallback((message, type = 'info') => {
-    if (toast) {
-      toast(message, type)
-    } else {
-      console.log(`[Toast] ${type}: ${message}`)
-      alert(message)
-    }
-  }, [toast])
+  const { showToast } = useToast()
 
   const pendingBookingFromDashboard = location.state?.pendingBooking || null
 
@@ -473,6 +464,42 @@ export default function Booking({ user }) {
   }
 
   // ============================================
+  // CUSTOMER: CANCEL PENDING BOOKING
+  // ============================================
+
+  async function handleCancelPendingBooking() {
+    if (!bookingData?.id) {
+      setShowPayment(false)
+      return
+    }
+
+    if (!window.confirm('Batalkan pesanan ini?\n\nSlot akan dibuka kembali untuk orang lain.')) return
+
+    const { error } = await cancelPendingBooking(bookingData.id)
+    if (error) {
+      showToast('❌ Gagal membatalkan pesanan: ' + error.message, 'error')
+      return
+    }
+
+    showToast('✅ Pesanan dibatalkan', 'success')
+    setShowPayment(false)
+    setShowCheckout(false)
+    setBookingData(null)
+    setSelectedSlots([])
+    setVoucher(null)
+
+    if (pendingBookingFromDashboard) {
+      // Came here via Dashboard's "Lanjutkan Pembayaran", which passes the
+      // booking through location.state. Clear it with a clean navigation
+      // so the component remounts without pendingBookingFromDashboard set,
+      // letting the normal slot-loading effect take over again.
+      navigate('/booking', { replace: true })
+    } else {
+      await loadBookings()
+    }
+  }
+
+  // ============================================
   // RENDER
   // ============================================
 
@@ -645,6 +672,7 @@ export default function Booking({ user }) {
       <PaymentSheet
         isOpen={showPayment}
         onClose={() => setShowPayment(false)}
+        onCancelBooking={handleCancelPendingBooking}
         booking={bookingData}
         user={user}
       />
