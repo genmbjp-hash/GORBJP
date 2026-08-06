@@ -1,6 +1,6 @@
 import React from 'react'
 import { formatPrice } from '../../lib/price'
-import { useToast } from '../../contexts/ToastContext'
+import { useToast } from '../../hooks/useToast'
 
 export default function PaymentSheet({ isOpen, onClose, booking, user }) {
   const { showToast } = useToast()
