@@ -300,8 +300,7 @@ export default function Dashboard({ user, profile }) {
       </div>
 
       <div className="card" style={{ background: 'var(--primary)', color: 'white', border: 'none' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 700 }}>👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!</h2>
-        <p style={{ fontSize: '14px', opacity: 0.9 }}>Pesan venue dan dapatkan PIN Anda</p>
+        <h2 style={{ fontSize: '24px', fontWeight: 700 }}>👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!</h2>
       </div>
 
       <div className="stats-grid">
