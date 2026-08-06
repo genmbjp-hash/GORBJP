@@ -19,15 +19,30 @@ export default function PaymentSheet({ isOpen, onClose, onCancelBooking, booking
   }
 
   function getWhatsAppMessage() {
-    const message = `Halo Admin,
+    const customerName = user?.display_name || user?.full_name || 'Customer'
+    const block = user?.block ? `Blok ${user.block}` : ''
+    const houseNumber = user?.house_number ? `No. ${user.house_number}` : ''
+    const customerInfo = `${customerName} ${block} ${houseNumber}`.trim()
 
+    // Start with header
+    let message = `Halo Admin GOR BJP,
 Saya sudah melakukan pembayaran untuk booking berikut:
 
 📅 *Tanggal:* ${formatDate(booking.start_time)}
 ⏰ *Waktu:* ${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}
 ⏱️ *Durasi:* ${booking.duration_hours} jam
+👤 *Customer:* ${customerInfo}
+
+🏷️ *Biaya Sewa:* ${formatPrice(booking.original_price)}`
+
+    // Add donation if exists
+    if (booking.donation_amount > 0) {
+      message += `\n🙏 *Donasi:* ${formatPrice(booking.donation_amount)}`
+    }
+
+    // Separator and total
+    message += `\n────────────────────
 💰 *Total:* ${formatPrice(booking.price)}
-👤 *Customer:* ${user?.email || 'Customer'}
 
 Bukti pembayaran saya lampirkan di bawah ini, mohon segera dikonfirmasi.
 
@@ -71,6 +86,11 @@ Terima kasih. 🙏`
               }} 
             />
             <small>Total: <strong>{formatPrice(booking.price)}</strong></small>
+            {booking.donation_amount > 0 && (
+              <small style={{ display: 'block', color: '#8B5CF6', marginTop: '4px' }}>
+                🙏 Termasuk donasi {formatPrice(booking.donation_amount)}
+              </small>
+            )}
           </div>
 
           <div style={{ background: '#EFF6FF', padding: '16px', borderRadius: '8px', border: '1px solid #93C5FD', marginBottom: '16px' }}>
