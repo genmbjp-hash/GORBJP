@@ -111,15 +111,15 @@ export default function AdminBookings({ bookings, onRefresh }) {
                     <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
                       {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
                     </div>
-                    <div style={{ marginTop: '4px' }}>
+                    <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
                       {getStatusBadge(b.status)}
                       {getPaymentBadge(b.payment_status || 'pending')}
                       {b.closure_reason && (
-                        <span className="badge" style={{ marginLeft: '4px', background: '#FEE2E2', color: '#991B1B' }}>
+                        <span className="badge" style={{ background: '#FEE2E2', color: '#991B1B' }}>
                           📝 {b.closure_reason}
                         </span>
                       )}
-                      <span style={{ marginLeft: '8px', fontWeight: 600, color: b.is_admin_booking ? 'var(--gray-500)' : 'var(--primary)' }}>
+                      <span style={{ fontWeight: 600, color: b.is_admin_booking ? 'var(--gray-500)' : 'var(--primary)' }}>
                         {getPriceDisplay(b)}
                       </span>
                     </div>
@@ -151,24 +151,26 @@ export default function AdminBookings({ bookings, onRefresh }) {
                 <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
                   {formatDate(b.start_time)} {formatTime(b.start_time)} - {formatTime(b.end_time)}
                 </div>
-                <div style={{ marginTop: '4px' }}>
+                <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
                   {getStatusBadge(b.status)}
                   {getPaymentBadge(b.payment_status || 'free')}
-                  {b.voucher_id && <span className="badge" style={{ marginLeft: '4px', background: '#E0E7FF', color: '#3730A3' }}>🎫 Voucher</span>}
+                  {b.voucher_id && <span className="badge" style={{ background: '#E0E7FF', color: '#3730A3' }}>🎫 Voucher</span>}
                   {b.closure_reason && (
-                    <span className="badge" style={{ marginLeft: '4px', background: '#FEE2E2', color: '#991B1B' }}>
+                    <span className="badge" style={{ background: '#FEE2E2', color: '#991B1B' }}>
                       📝 {b.closure_reason}
                     </span>
                   )}
-                  <span style={{ marginLeft: '8px', fontWeight: 600, color: b.is_admin_booking ? 'var(--gray-500)' : 'var(--primary)' }}>
+                  <span style={{ fontWeight: 600, color: b.is_admin_booking ? 'var(--gray-500)' : 'var(--primary)' }}>
                     {getPriceDisplay(b)}
                   </span>
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>
-                  {b.pin || '-'}
-                </div>
+                {b.pin && (
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>
+                    {b.pin}
+                  </div>
+                )}
               </div>
             </div>
           ))}
