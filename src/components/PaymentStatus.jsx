@@ -63,7 +63,7 @@ export default function PaymentStatus() {
           <>
             <div style={{ fontSize: '64px', marginBottom: '16px' }}>✅</div>
             <h2 style={{ color: 'var(--success)', marginBottom: '8px' }}>Pembayaran Berhasil!</h2>
-            <p style={{ color: 'var(--gray-600)' }}>PIN akses akan segera dikirim via WhatsApp.</p>
+            <p style={{ color: 'var(--gray-600)' }}>PIN akses akan segera dikirim.</p>
             <p style={{ fontSize: '13px', color: 'var(--gray-400)', marginTop: '4px' }}>
               Mengalihkan ke Dashboard dalam 5 detik...
             </p>
