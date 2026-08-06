@@ -235,7 +235,16 @@ export async function createBooking(userId, slotData, duration, voucherId) {
     .select()
     .single()
 
-  if (error) return { error }
+  if (error) {
+    // Postgres exclusion_violation: another booking for an overlapping
+    // time range was inserted between our overlap check above and this
+    // insert (a race). Surface the same friendly message the pre-check
+    // above uses, instead of a raw DB error.
+    if (error.code === '23P01') {
+      return { error: { message: 'Slot sudah tidak tersedia' } }
+    }
+    return { error }
+  }
 
   if (voucherIdToUse) {
     await supabase.rpc('increment_voucher_usage', { voucher_id: voucherIdToUse })
