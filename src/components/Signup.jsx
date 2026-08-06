@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { signUp } from '../lib/supabase'
-import { useToast } from '../App'
+import { useToast } from '../hooks/useToast'
 
 export default function Signup() {
   const [fullName, setFullName] = useState('')
@@ -13,7 +13,7 @@ export default function Signup() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
-  const showToast = useToast()
+  const { showToast } = useToast()
 
   async function handleSubmit(e) {
     e.preventDefault()
