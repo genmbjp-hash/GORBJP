@@ -25,7 +25,7 @@ function getStatusBadge(status) {
     'cancelled': 'badge-cancelled'
   }
   const labels = {
-    'pending': '⏳ Menunggu',
+    'pending': '⏳ Menunggu Pembayaran',
     'active': '✅ Aktif',
     'completed': '✔️ Selesai',
     'cancelled': '❌ Dibatalkan'
@@ -101,14 +101,36 @@ const BookingItem = memo(function BookingItem({
             <button
               onClick={() => onContinuePayment(booking)}
               className="btn btn-warning btn-sm"
-              style={{ width: 'auto', minHeight: '40px', padding: '8px 14px', fontSize: '13px', flex: '1', minWidth: '120px' }}
+              style={{ 
+                width: 'auto', 
+                minHeight: '40px', 
+                padding: '8px 14px', 
+                fontSize: '13px', 
+                flex: '1', 
+                minWidth: '120px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center'
+              }}
             >
               📖 Lanjutkan
             </button>
             <button
               onClick={() => onCancelPending(booking.id)}
               className="btn btn-danger btn-sm"
-              style={{ width: 'auto', minHeight: '40px', padding: '8px 14px', fontSize: '13px', flex: '1', minWidth: '80px' }}
+              style={{ 
+                width: 'auto', 
+                minHeight: '40px', 
+                padding: '8px 14px', 
+                fontSize: '13px', 
+                flex: '1', 
+                minWidth: '80px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center'
+              }}
             >
               ❌ Batal
             </button>
@@ -124,7 +146,16 @@ const BookingItem = memo(function BookingItem({
               <button
                 onClick={() => onCancel(booking.id)}
                 className="btn btn-danger btn-sm"
-                style={{ width: 'auto', minHeight: '36px', padding: '6px 12px', fontSize: '12px' }}
+                style={{ 
+                  width: 'auto', 
+                  minHeight: '36px', 
+                  padding: '6px 12px', 
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center'
+                }}
               >
                 Batal
               </button>
@@ -147,7 +178,6 @@ export default function Dashboard({ user, profile }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  // ✅ Memoized loadBookings with useCallback
   const loadBookings = useCallback(async (showRefresh = false) => {
     if (showRefresh) {
       setRefreshing(true)
@@ -172,7 +202,6 @@ export default function Dashboard({ user, profile }) {
     }
   }, [user.id, showToast])
 
-  // ✅ Initial load with cleanup
   useEffect(() => {
     let isMounted = true
     let loadTimeout = null
@@ -201,7 +230,6 @@ export default function Dashboard({ user, profile }) {
     }
   }, [])
 
-  // ✅ Memoized stats
   const stats = useMemo(() => {
     const total = bookings.length
     const active = bookings.filter(b => b.status === 'active').length
@@ -209,7 +237,6 @@ export default function Dashboard({ user, profile }) {
     return { total, active, pending }
   }, [bookings])
 
-  // ✅ Cancel functions with useCallback
   const handleCancel = useCallback(async (bookingId) => {
     if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
 
@@ -267,7 +294,6 @@ export default function Dashboard({ user, profile }) {
     }
   }, [loadBookings, refreshing, loading])
 
-  // ✅ Show loading state
   if (loading) {
     return (
       <div className="container" style={{ paddingTop: '16px' }}>
@@ -309,7 +335,11 @@ export default function Dashboard({ user, profile }) {
               width: 'auto', 
               minHeight: '36px', 
               padding: '4px 16px', 
-              fontSize: '13px'
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center'
             }}
           >
             Keluar
@@ -327,6 +357,9 @@ export default function Dashboard({ user, profile }) {
         <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
           👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!
         </h2>
+        <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: 0 }}>
+          Pesan venue dan dapatkan PIN Anda
+        </p>
       </div>
 
       {/* ===== STATS ===== */}
@@ -351,23 +384,25 @@ export default function Dashboard({ user, profile }) {
       </div>
 
       {/* ===== ACTION BUTTON ===== */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-        <Link 
-          to="/booking" 
-          className="btn btn-primary" 
-          style={{ 
-            width: '100%', 
-            minHeight: '48px',
-            fontSize: '15px',
-            fontWeight: 600
-          }}
-        >
-          📖 Pesan Slot Baru
-        </Link>
-      </div>
+      <Link 
+        to="/booking" 
+        className="btn btn-primary" 
+        style={{ 
+          width: '100%', 
+          minHeight: '48px',
+          fontSize: '15px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}
+      >
+        📖 Pesan Slot Baru
+      </Link>
 
       {/* ===== BOOKINGS LIST ===== */}
-      <div className="card" style={{ padding: '16px' }}>
+      <div className="card" style={{ padding: '16px', marginTop: '16px' }}>
         <div className="card-header" style={{ marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <span className="card-title" style={{ fontSize: '16px' }}>📋 Pesanan Saya</span>
           <button 
@@ -380,6 +415,8 @@ export default function Dashboard({ user, profile }) {
               fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
               gap: '4px'
             }}
             disabled={refreshing}
