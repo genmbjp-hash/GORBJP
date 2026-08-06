@@ -4,12 +4,12 @@ import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPend
 import { useToast } from '../../hooks/useToast'
 
 // ============================================
-// HELPER FUNCTIONS (moved outside component)
+// HELPER FUNCTIONS
 // ============================================
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 function formatTime(dateStr) {
