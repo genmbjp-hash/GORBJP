@@ -163,7 +163,7 @@ export async function validateVoucher(code, duration) {
   return { data, error: null }
 }
 
-export async function createBooking(userId, slotData, duration, voucherId) {
+export async function createBooking(userId, slotData, duration, voucherId, donationAmount = 0) {
   const { date, hour } = slotData
 
   // `date` arrives as a 'YYYY-MM-DD' local-date string (see
@@ -217,6 +217,10 @@ export async function createBooking(userId, slotData, duration, voucherId) {
     }
   }
 
+  // ✅ Add donation to final price
+  const donationAmountInt = parseInt(donationAmount) || 0
+  const priceWithDonation = finalPrice + donationAmountInt
+
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -226,12 +230,13 @@ export async function createBooking(userId, slotData, duration, voucherId) {
       end_time: endWIB,
       duration_hours: duration,
       original_price: originalPrice,
-      price: finalPrice,
+      price: priceWithDonation,  // ✅ Total includes donation
       discount_applied: discountApplied,
       payment_status: 'pending',
       payment_method: voucherIdToUse ? 'voucher' : 'pending',
       status: 'pending',
       voucher_id: voucherIdToUse,
+      donation_amount: donationAmountInt,  // ✅ Store donation separately
     })
     .select()
     .single()
