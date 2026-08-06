@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signIn, getProfile } from '../lib/supabase'
-import { useToast } from '../hooks/useToast'
+import { useToast } from '../contexts/ToastContext'  // ✅ Fixed import
 
 export default function Login() {
   const [email, setEmail] = useState('')
