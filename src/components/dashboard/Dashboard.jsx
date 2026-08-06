@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPendingBooking } from '../../lib/supabase'
-import { useToast } from '../../contexts/ToastContext'
+import { useToast } from '../../hooks/useToast'
 
 // ============================================
 // HELPER FUNCTIONS (moved outside component)
