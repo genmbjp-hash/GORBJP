@@ -34,6 +34,9 @@ export default function CheckoutSheet({
   const [applying, setApplying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showVoucher, setShowVoucher] = useState(false)
+  // ✅ Donation states
+  const [addDonation, setAddDonation] = useState(false)
+  const [donationAmount, setDonationAmount] = useState('')
   const { showToast } = useToast()
 
   // Clear errors when hiding the voucher input
@@ -54,6 +57,9 @@ export default function CheckoutSheet({
 
   const finalPrice = voucher ? calculateFinalPrice(price, voucher) : price
   const discountAmount = voucher ? calculateDiscount(price, voucher) : 0
+  // ✅ Calculate donation and total
+  const donationInt = parseInt(donationAmount) || 0
+  const totalWithDonation = addDonation ? finalPrice + donationInt : finalPrice
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
@@ -104,11 +110,13 @@ export default function CheckoutSheet({
       }
 
       const dateStr = getLocalDateString(selectedDate)
+      // ✅ Pass donation amount to createBooking
       const result = await createBooking(
         user.id,
         { date: dateStr, hour: start.getHours() },
         duration,
-        voucher?.id || null
+        voucher?.id || null,
+        addDonation ? donationInt : 0  // ✅ Donation amount
       )
 
       if (!result || result.error) {
@@ -132,6 +140,14 @@ export default function CheckoutSheet({
   const displayDate = isResuming && existingBooking
     ? new Date(existingBooking.start_time)
     : selectedDate
+
+  // ✅ Handle donation toggle
+  const handleDonationToggle = (checked) => {
+    setAddDonation(checked)
+    if (!checked) {
+      setDonationAmount('')
+    }
+  }
 
   return (
     <>
@@ -189,6 +205,56 @@ export default function CheckoutSheet({
                 <span className="v" style={{ color: 'var(--success)' }}>- {formatPrice(discountAmount)}</span>
               </div>
             )}
+
+            {/* ✅ Donation Toggle */}
+            <div className="row" style={{ borderBottom: 'none', paddingTop: '8px' }}>
+              <span className="k" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={addDonation}
+                  onChange={(e) => handleDonationToggle(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: '#8B5CF6', cursor: 'pointer' }}
+                />
+                🙏 Tambahkan donasi (opsional)
+              </span>
+              {addDonation && (
+                <span className="v" style={{ color: '#8B5CF6' }}>
+                  + {donationInt > 0 ? formatPrice(donationInt) : 'Rp 0'}
+                </span>
+              )}
+            </div>
+
+            {/* ✅ Donation Input (visible when checkbox is checked) */}
+            {addDonation && (
+              <div className="row" style={{ borderBottom: 'none', paddingTop: '4px' }}>
+                <span className="k" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                  Masukkan nominal
+                </span>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Contoh: 25000"
+                  value={donationAmount}
+                  onChange={(e) => setDonationAmount(e.target.value)}
+                  min="1"
+                  style={{ 
+                    padding: '6px 12px', 
+                    fontSize: '14px', 
+                    width: '150px', 
+                    textAlign: 'right',
+                    border: '1px solid var(--gray-300)',
+                    borderRadius: '6px'
+                  }}
+                  autoFocus={addDonation}
+                />
+              </div>
+            )}
+
+            {/* ✅ Total with Donation */}
+            <div className="row" style={{ borderTop: '2px solid var(--primary)', paddingTop: '8px', marginTop: '8px' }}>
+              <span className="k" style={{ fontWeight: 700 }}>Total</span>
+              <span className="total-v">{formatPrice(totalWithDonation)}</span>
+            </div>
           </div>
 
           {!isResuming && (
