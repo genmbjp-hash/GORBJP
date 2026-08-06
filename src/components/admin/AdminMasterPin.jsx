@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo, memo } from 'react'
 import { generateMasterPin } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
-import { useToast } from '../../contexts/ToastContext'
+import { useToast } from '../../hooks/useToast'
 
 // ============================================
 // MASTER PIN HISTORY ITEM (memoized)

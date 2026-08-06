@@ -3,7 +3,7 @@
 import React from 'react'
 import { confirmPayment } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
-import { useToast } from '../../contexts/ToastContext'
+import { useToast } from '../../hooks/useToast'
 
 export default function AdminBookings({ bookings, onRefresh }) {
   const { showToast } = useToast()

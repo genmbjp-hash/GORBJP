@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { approveUser } from '../../lib/api'
-import { useToast } from '../../contexts/ToastContext'
+import { useToast } from '../../hooks/useToast'
 
 // ============================================
 // USER ITEM COMPONENT (memoized)
