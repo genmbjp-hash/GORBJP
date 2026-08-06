@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { signUp } from '../lib/supabase'
-import { useToast } from '../App'
+import { useToast } from '../../contexts/ToastContext'
 
 export default function Signup() {
   const [fullName, setFullName] = useState('')
