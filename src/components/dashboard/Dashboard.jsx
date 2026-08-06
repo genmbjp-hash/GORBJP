@@ -9,7 +9,7 @@ import { useToast } from '../../hooks/useToast'
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('id-ID', { weekday: 'full', day: 'numeric', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function formatTime(dateStr) {
