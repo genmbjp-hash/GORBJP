@@ -11,6 +11,7 @@ function getLocalDateString(date) {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
 function formatTime(date) {
   return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
@@ -73,31 +74,35 @@ export default function CheckoutSheet({
   const handleConfirmBooking = async () => {
     setLoading(true)
 
-    // ✅ If resuming existing booking, just go to payment
     if (isResuming && existingBooking) {
       onPayment()
       setLoading(false)
       return
     }
 
-    // ✅ FIXED: Use local date string
-  const dateStr = getLocalDateString(selectedDate)
-  const result = await createBooking(
-    user.id,
-    { date: dateStr, hour: start.getHours() },
-    duration,
-    voucher?.id || null
-  )
+    try {
+      const dateStr = getLocalDateString(selectedDate)
+      const result = await createBooking(
+        user.id,
+        { date: dateStr, hour: start.getHours() },
+        duration,
+        voucher?.id || null
+      )
 
-    if (result.error) {
-      showToast('❌ ' + result.error.message, 'error')
+      if (result.error) {
+        showToast('❌ ' + result.error.message, 'error')
+        setLoading(false)
+        return
+      }
+
+      onBookingCreated(result.data)
+      onPayment()
+    } catch (error) {
+      console.error('Booking error:', error)
+      showToast('❌ Gagal membuat booking: ' + error.message, 'error')
+    } finally {
       setLoading(false)
-      return
     }
-
-    onBookingCreated(result.data)
-    onPayment()
-    setLoading(false)
   }
 
   const displayDate = isResuming && existingBooking
