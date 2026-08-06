@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPendingBooking } from '../../lib/supabase'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 
 // ============================================
 // HELPER FUNCTIONS
@@ -25,7 +25,7 @@ function getStatusBadge(status) {
     'cancelled': 'badge-cancelled'
   }
   const labels = {
-    'pending': '⏳ Menunggu Pembayaran',
+    'pending': '⏳ Menunggu',
     'active': '✅ Aktif',
     'completed': '✔️ Selesai',
     'cancelled': '❌ Dibatalkan'
@@ -69,52 +69,67 @@ const BookingItem = memo(function BookingItem({
     <div className="booking-item" style={{ 
       borderLeft: isPending ? '4px solid var(--warning)' : '4px solid transparent',
       paddingLeft: '12px',
-      alignItems: 'flex-start'
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: '8px'
     }}>
-      <div className="booking-info">
+      <div className="booking-info" style={{ width: '100%' }}>
         <div className="booking-date">{formatDate(booking.start_time)}</div>
         <div className="booking-time">{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</div>
-        <div style={{ marginTop: '4px' }}>
+        <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
           {getStatusBadge(booking.status)}
           {booking.status !== 'cancelled' && getPaymentBadge(booking.payment_status, booking.discount_applied)}
           {hasVoucher && booking.discount_applied > 0 && (
-            <span style={{ marginLeft: '4px', fontSize: '11px', color: 'var(--gray-500)' }}>
+            <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
               (Diskon Rp {booking.discount_applied.toLocaleString()})
             </span>
           )}
         </div>
       </div>
-      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '6px' }}>
+      <div style={{ 
+        textAlign: 'right', 
+        display: 'flex', 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        justifyContent: 'flex-end', 
+        gap: '8px',
+        flexWrap: 'wrap',
+        width: '100%'
+      }}>
         {isPending ? (
           <>
             <button
               onClick={() => onContinuePayment(booking)}
               className="btn btn-warning btn-sm"
-              style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+              style={{ width: 'auto', minHeight: '40px', padding: '8px 14px', fontSize: '13px', flex: '1', minWidth: '120px' }}
             >
-              📖 Lanjutkan Pembayaran
+              📖 Lanjutkan
             </button>
             <button
               onClick={() => onCancelPending(booking.id)}
               className="btn btn-danger btn-sm"
-              style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+              style={{ width: 'auto', minHeight: '40px', padding: '8px 14px', fontSize: '13px', flex: '1', minWidth: '80px' }}
             >
               ❌ Batal
             </button>
           </>
         ) : (
-          <>
-            {booking.pin && <div className="booking-pin">{booking.pin}</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end' }}>
+            {booking.pin && (
+              <div className="booking-pin" style={{ fontSize: '24px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '2px' }}>
+                {booking.pin}
+              </div>
+            )}
             {(booking.status === 'active' || booking.status === 'pending') && (
               <button
                 onClick={() => onCancel(booking.id)}
                 className="btn btn-danger btn-sm"
-                style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+                style={{ width: 'auto', minHeight: '36px', padding: '6px 12px', fontSize: '12px' }}
               >
                 Batal
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -157,7 +172,7 @@ export default function Dashboard({ user, profile }) {
     }
   }, [user.id, showToast])
 
-  // ✅ Initial load with cleanup - FIXED: empty dependency array
+  // ✅ Initial load with cleanup
   useEffect(() => {
     let isMounted = true
     let loadTimeout = null
@@ -176,7 +191,6 @@ export default function Dashboard({ user, profile }) {
       }
     }
 
-    // Debounce initial load
     loadTimeout = setTimeout(init, 100)
 
     return () => {
@@ -185,7 +199,7 @@ export default function Dashboard({ user, profile }) {
         clearTimeout(loadTimeout)
       }
     }
-  }, [])  // ✅ Empty array = run once on mount
+  }, [])
 
   // ✅ Memoized stats
   const stats = useMemo(() => {
@@ -193,11 +207,6 @@ export default function Dashboard({ user, profile }) {
     const active = bookings.filter(b => b.status === 'active').length
     const pending = bookings.filter(b => b.status === 'pending').length
     return { total, active, pending }
-  }, [bookings])
-
-  // ✅ Memoized pending bookings
-  const pendingBookings = useMemo(() => {
-    return bookings.filter(b => b.status === 'pending')
   }, [bookings])
 
   // ✅ Cancel functions with useCallback
@@ -223,7 +232,6 @@ export default function Dashboard({ user, profile }) {
     }
   }, [user.id, showToast, loadBookings])
 
-  // ✅ Fixed: Cancel specific pending booking, not just the first one
   const handleCancelPending = useCallback(async (bookingId) => {
     if (!confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) return
 
@@ -283,7 +291,8 @@ export default function Dashboard({ user, profile }) {
   }
 
   return (
-    <div className="container" style={{ paddingTop: '16px' }}>
+    <div className="container" style={{ paddingTop: '16px', paddingBottom: '80px' }}>
+      {/* ===== HEADER ===== */}
       <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
         <div className="header-content" style={{ padding: 0 }}>
           <div className="logo">
@@ -293,42 +302,104 @@ export default function Dashboard({ user, profile }) {
               <span className="logo-sub">Sistem Pemesanan</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+          <button 
+            onClick={handleLogout} 
+            className="btn btn-outline btn-sm" 
+            style={{ 
+              width: 'auto', 
+              minHeight: '36px', 
+              padding: '4px 16px', 
+              fontSize: '13px'
+            }}
+          >
             Keluar
           </button>
         </div>
       </div>
 
-      <div className="card" style={{ background: 'var(--primary)', color: 'white', border: 'none' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 700 }}>👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!</h2>
+      {/* ===== WELCOME CARD ===== */}
+      <div className="card" style={{ 
+        background: 'var(--primary)', 
+        color: 'white', 
+        border: 'none',
+        padding: '20px'
+      }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
+          👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!
+        </h2>
+        <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: 0 }}>
+          Pesan venue dan dapatkan PIN Anda
+        </p>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-number">{stats.total}</div>
-          <div className="stat-label">Total Pesanan</div>
+      {/* ===== STATS ===== */}
+      <div className="stats-grid" style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(3, 1fr)', 
+        gap: '10px',
+        marginBottom: '16px'
+      }}>
+        <div className="stat-card" style={{ padding: '14px 8px' }}>
+          <div className="stat-number" style={{ fontSize: '24px' }}>{stats.total}</div>
+          <div className="stat-label" style={{ fontSize: '11px' }}>Total</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{stats.active}</div>
-          <div className="stat-label">Aktif</div>
+        <div className="stat-card" style={{ padding: '14px 8px' }}>
+          <div className="stat-number" style={{ fontSize: '24px', color: 'var(--success)' }}>{stats.active}</div>
+          <div className="stat-label" style={{ fontSize: '11px' }}>Aktif</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{stats.pending}</div>
-          <div className="stat-label">Menunggu</div>
+        <div className="stat-card" style={{ padding: '14px 8px' }}>
+          <div className="stat-number" style={{ fontSize: '24px', color: 'var(--warning)' }}>{stats.pending}</div>
+          <div className="stat-label" style={{ fontSize: '11px' }}>Menunggu</div>
         </div>
       </div>
 
-      <Link to="/booking" className="btn btn-primary" style={{ marginBottom: '16px' }}>
-        📖 Pesan Slot Baru
-      </Link>
+      {/* ===== ACTION BUTTONS ===== */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+        <Link 
+          to="/booking" 
+          className="btn btn-primary" 
+          style={{ 
+            width: '100%', 
+            minHeight: '48px',
+            fontSize: '15px',
+            fontWeight: 600
+          }}
+        >
+          📖 Pesan Slot Baru
+        </Link>
+        
+        <button 
+          onClick={() => {/* Will add donation sheet later */}} 
+          className="btn btn-success" 
+          style={{ 
+            width: '100%', 
+            minHeight: '48px',
+            fontSize: '15px',
+            fontWeight: 600,
+            background: '#8B5CF6',
+            border: 'none'
+          }}
+        >
+          🙏 Donasi
+        </button>
+      </div>
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">📋 Pesanan Saya</span>
+      {/* ===== BOOKINGS LIST ===== */}
+      <div className="card" style={{ padding: '16px' }}>
+        <div className="card-header" style={{ marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <span className="card-title" style={{ fontSize: '16px' }}>📋 Pesanan Saya</span>
           <button 
             onClick={handleRefresh} 
             className="btn btn-outline btn-sm" 
-            style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+            style={{ 
+              width: 'auto', 
+              minHeight: '36px', 
+              padding: '4px 14px', 
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
             disabled={refreshing}
           >
             {refreshing ? '⏳' : '🔄'} Refresh
@@ -336,21 +407,25 @@ export default function Dashboard({ user, profile }) {
         </div>
 
         {bookings.length === 0 ? (
-          <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
+          <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px', fontSize: '14px' }}>
+            Belum ada pesanan
+          </p>
         ) : (
-          bookings.map(b => {
-            const isPending = b.status === 'pending'
-            return (
-              <BookingItem
-                key={b.id}
-                booking={b}
-                isPending={isPending}
-                onCancel={handleCancel}
-                onCancelPending={handleCancelPending}
-                onContinuePayment={handleContinuePayment}
-              />
-            )
-          })
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {bookings.map(b => {
+              const isPending = b.status === 'pending'
+              return (
+                <BookingItem
+                  key={b.id}
+                  booking={b}
+                  isPending={isPending}
+                  onCancel={handleCancel}
+                  onCancelPending={handleCancelPending}
+                  onContinuePayment={handleContinuePayment}
+                />
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
