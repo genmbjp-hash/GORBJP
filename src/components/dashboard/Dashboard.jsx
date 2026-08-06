@@ -114,7 +114,7 @@ const BookingItem = memo(function BookingItem({
                 textAlign: 'center'
               }}
             >
-              📖 Lanjutkan
+              Lanjutkan
             </button>
             <button
               onClick={() => onCancelPending(booking.id)}
@@ -132,7 +132,7 @@ const BookingItem = memo(function BookingItem({
                 textAlign: 'center'
               }}
             >
-              ❌ Batal
+              Batal
             </button>
           </>
         ) : (
@@ -357,9 +357,6 @@ export default function Dashboard({ user, profile }) {
         <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
           👋 Selamat datang, {profile.display_name || profile.full_name || 'User'}!
         </h2>
-        <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: 0 }}>
-          Pesan venue dan dapatkan PIN Anda
-        </p>
       </div>
 
       {/* ===== STATS ===== */}
