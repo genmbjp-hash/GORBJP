@@ -2,12 +2,12 @@ import React from 'react'
 import { formatPrice } from '../../lib/price'
 import { useToast } from '../../hooks/useToast'
 
-export default function PaymentSheet({ isOpen, onClose, booking, user }) {
+export default function PaymentSheet({ isOpen, onClose, onCancelBooking, booking, user }) {
   const { showToast } = useToast()
 
   if (!isOpen || !booking) return null
 
-  const ADMIN_PHONE = '6281234567890'
+  const ADMIN_PHONE = '628112012610'
   const WHATSAPP_LINK = `https://wa.me/${ADMIN_PHONE}`
 
   function formatTime(date) {
@@ -87,11 +87,16 @@ Terima kasih. 🙏`
               💬 Konfirmasi via WhatsApp
             </a>
             <p style={{ fontSize: '12px', color: '#1E40AF', marginTop: '8px', textAlign: 'center' }}>
-              Booking aktif setelah admin mengonfirmasi.
+              Pastikan kamu juga mengirim bukti pembayaran kepada admin.
             </p>
           </div>
 
-          <button className="btn btn-outline" onClick={onClose}>← Ubah pesanan</button>
+          <button className="btn btn-outline" onClick={onCancelBooking || onClose}>
+            ❌ Batalkan Pesanan
+          </button>
+          <p style={{ fontSize: '11px', color: 'var(--gray-400)', textAlign: 'center', marginTop: '8px' }}>
+            Sudah scan &amp; mau bayar nanti? Tutup jendela ini saja — pesanan Anda tersimpan dan bisa dilanjutkan dari Dashboard.
+          </p>
         </div>
       </div>
     </>
