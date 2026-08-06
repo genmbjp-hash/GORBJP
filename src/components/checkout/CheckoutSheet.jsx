@@ -322,11 +322,6 @@ export default function CheckoutSheet({
                     />
                     🙏 Tambahkan donasi (opsional)
                   </span>
-                  {addDonation && donationInt > 0 && (
-                    <span className="v" style={{ color: '#8B5CF6' }}>
-                      + {formatPrice(donationInt)}
-                    </span>
-                  )}
                 </div>
 
                 {addDonation && (
