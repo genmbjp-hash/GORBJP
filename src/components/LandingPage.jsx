@@ -5,9 +5,7 @@ export default function LandingPage({ user, profile }) {
   return (
     <div className="container" style={{ paddingTop: '40px' }}>
       <div className="card" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', color: 'white', border: 'none', textAlign: 'center', padding: '40px 24px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '8px' }}>🏛️ Gedung Serbaguna BJP</h1>
-        <p style={{ fontSize: '16px', opacity: 0.9 }}>Sewa venue dengan mudah, dapatkan PIN akses</p>
-        <p style={{ fontSize: '14px', opacity: 0.7 }}>Book venue easily, get your access PIN</p>
+        <h1 style={{ fontSize: '40px', fontWeight: 800, marginBottom: '8px' }}>🏛️ Gedung Serbaguna BJP</h1>
       </div>
 
       <div className="card">
@@ -23,7 +21,7 @@ export default function LandingPage({ user, profile }) {
           </div>
           <div className="hiw-step">
             <div className="hiw-number">3</div>
-            <div className="hiw-text">Dapatkan PIN & Masuk</div>
+            <div className="hiw-text">Dapatkan PIN Booking</div>
           </div>
         </div>
       </div>
@@ -46,7 +44,7 @@ export default function LandingPage({ user, profile }) {
       </div>
 
       <div style={{ textAlign: 'center', padding: '24px 0 16px', fontSize: '12px', color: 'var(--gray-400)' }}>
-        © 2026 Gedung Serbaguna BJP
+        © 2026 Gen M BJP
       </div>
     </div>
   )
