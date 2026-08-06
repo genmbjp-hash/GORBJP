@@ -4,16 +4,16 @@ import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 import { forceLamp } from '../../lib/api'
 
-// ✅ Lazy load child components (only load when needed)
+// ✅ Lazy load child components
 const AdminUsers = lazy(() => import('./AdminUsers'))
 const AdminVouchers = lazy(() => import('./AdminVouchers'))
 const AdminBookings = lazy(() => import('./AdminBookings'))
 const AdminMasterPin = lazy(() => import('./AdminMasterPin'))
 
-// ✅ Loading fallback for tabs
+// ✅ Loading fallback
 function TabLoading() {
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -26,30 +26,46 @@ function TabLoading() {
 // ✅ Device Status Component (memoized)
 const DeviceStatus = React.memo(function DeviceStatus({ deviceStatus, onForceLamp }) {
   return (
-    <div className="card" style={{ border: '2px solid var(--primary)' }}>
-      <div className="card-header">
-        <span className="card-title">💡 Kontrol Lampu</span>
+    <div className="card" style={{ border: '2px solid var(--primary)', padding: '16px' }}>
+      <div className="card-header" style={{ marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <span className="card-title" style={{ fontSize: '16px' }}>💡 Kontrol Lampu</span>
         <span className={`badge ${deviceStatus?.relay_state ? 'badge-active' : 'badge-cancelled'}`}>
           {deviceStatus?.relay_state ? '💡 ON' : '💡 OFF'}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         <button 
           onClick={() => onForceLamp('on')} 
           className="btn btn-success" 
-          style={{ flex: 1, minWidth: '100px' }}
+          style={{ 
+            flex: 1, 
+            minWidth: '80px',
+            minHeight: '44px',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
           💡 ON
         </button>
         <button 
           onClick={() => onForceLamp('off')} 
           className="btn btn-danger" 
-          style={{ flex: 1, minWidth: '100px' }}
+          style={{ 
+            flex: 1, 
+            minWidth: '80px',
+            minHeight: '44px',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
           💡 OFF
         </button>
       </div>
-      <div style={{ marginTop: '12px', fontSize: '14px', color: 'var(--gray-500)' }}>
+      <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--gray-500)' }}>
         Terakhir terlihat: {deviceStatus ? new Date(deviceStatus.last_seen).toLocaleString('id-ID') : '-'}
       </div>
     </div>
@@ -99,7 +115,6 @@ export default function Admin() {
         .from('bookings')
         .select('*, profiles(display_name, full_name, email, phone, block, house_number)')
         .order('start_time', { ascending: false })
-        // ✅ Limit to 100 most recent bookings for performance
         .limit(100)
 
       if (error) {
@@ -110,7 +125,6 @@ export default function Admin() {
       if (data) {
         setBookings(data)
         
-        // ✅ Calculate stats once
         const today = new Date().toDateString()
         const todayBookings = data.filter(b => new Date(b.start_time).toDateString() === today)
         const active = data.filter(b => b.status === 'active' || b.status === 'pending')
@@ -132,7 +146,7 @@ export default function Admin() {
     }
   }, [showToast])
 
-  // ✅ Load all data in parallel with proper error handling
+  // ✅ Load all data in parallel
   const loadAllData = useCallback(async () => {
     try {
       await Promise.all([
@@ -156,7 +170,6 @@ export default function Admin() {
       }
     }
 
-    // Debounce initial load
     loadTimeout = setTimeout(init, 100)
 
     return () => {
@@ -167,7 +180,7 @@ export default function Admin() {
     }
   }, [loadAllData])
 
-  // ✅ Memoized handler functions
+  // ✅ Memoized handlers
   const handleForceLamp = useCallback(async (state) => {
     try {
       await forceLamp(state)
@@ -184,12 +197,10 @@ export default function Admin() {
     }
   }, [loadBookings, refreshing, loading])
 
-  // ✅ Memoized navigation handler
   const handleBookVenue = useCallback(() => {
     navigate('/booking')
   }, [navigate])
 
-  // ✅ Memoized sign out handler
   const handleSignOut = useCallback(async () => {
     try {
       await signOut()
@@ -199,7 +210,6 @@ export default function Admin() {
     }
   }, [signOut, navigate, showToast])
 
-  // ✅ Memoized stats for display
   const statsDisplay = useMemo(() => stats, [stats])
 
   // ✅ Show loading state
@@ -215,54 +225,86 @@ export default function Admin() {
   }
 
   return (
-    <div className="container" style={{ paddingTop: '16px', paddingBottom: '40px' }}>
-      <div className="header" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--gray-100)' }}>
+    <div className="container" style={{ paddingTop: '12px', paddingBottom: '40px' }}>
+      {/* ===== HEADER ===== */}
+      <div className="header" style={{ padding: '0 0 12px 0', borderBottom: '2px solid var(--gray-100)' }}>
         <div className="header-content" style={{ padding: 0 }}>
           <div className="logo">
             <span className="logo-icon">🏛️</span>
             <div>
-              <span className="logo-text">Gedung Serbaguna BJP</span>
+              <span className="logo-text" style={{ fontSize: '16px' }}>Gedung Serbaguna BJP</span>
               <span className="logo-sub">👑 Panel Admin</span>
             </div>
           </div>
-          <button onClick={handleSignOut} className="btn btn-outline btn-sm" style={{ width: 'auto', minHeight: '36px', padding: '4px 16px' }}>
+          <button 
+            onClick={handleSignOut} 
+            className="btn btn-outline btn-sm" 
+            style={{ 
+              width: 'auto', 
+              minHeight: '36px', 
+              padding: '4px 14px', 
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
             Keluar
           </button>
         </div>
       </div>
 
-      <div style={{ marginBottom: '16px' }}>
-        <button onClick={handleBookVenue} className="btn btn-primary" style={{ width: '100%' }}>
+      {/* ===== BOOK VENUE BUTTON ===== */}
+      <div style={{ marginBottom: '14px' }}>
+        <button 
+          onClick={handleBookVenue} 
+          className="btn btn-primary" 
+          style={{ 
+            width: '100%', 
+            minHeight: '48px',
+            fontSize: '15px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
           📖 Book Venue
         </button>
       </div>
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <div className="stat-card">
-          <div className="stat-number">{statsDisplay.pending}</div>
-          <div className="stat-label">Menunggu</div>
+      {/* ===== STATS ===== */}
+      <div className="stats-grid" style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(4, 1fr)', 
+        gap: '8px',
+        marginBottom: '14px'
+      }}>
+        <div className="stat-card" style={{ padding: '12px 6px' }}>
+          <div className="stat-number" style={{ fontSize: '20px' }}>{statsDisplay.pending}</div>
+          <div className="stat-label" style={{ fontSize: '10px' }}>Menunggu</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{statsDisplay.today}</div>
-          <div className="stat-label">Hari Ini</div>
+        <div className="stat-card" style={{ padding: '12px 6px' }}>
+          <div className="stat-number" style={{ fontSize: '20px' }}>{statsDisplay.today}</div>
+          <div className="stat-label" style={{ fontSize: '10px' }}>Hari Ini</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{statsDisplay.active}</div>
-          <div className="stat-label">Aktif</div>
+        <div className="stat-card" style={{ padding: '12px 6px' }}>
+          <div className="stat-number" style={{ fontSize: '20px', color: 'var(--success)' }}>{statsDisplay.active}</div>
+          <div className="stat-label" style={{ fontSize: '10px' }}>Aktif</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{statsDisplay.total}</div>
-          <div className="stat-label">Total</div>
+        <div className="stat-card" style={{ padding: '12px 6px' }}>
+          <div className="stat-number" style={{ fontSize: '20px' }}>{statsDisplay.total}</div>
+          <div className="stat-label" style={{ fontSize: '10px' }}>Total</div>
         </div>
       </div>
 
-      {/* ✅ Lazy loaded components with Suspense */}
+      {/* ===== LAZY LOADED COMPONENTS ===== */}
       <Suspense fallback={<TabLoading />}>
         <AdminUsers />
       </Suspense>
 
       <Suspense fallback={<TabLoading />}>
-        <div className="card" style={{ border: '2px solid var(--warning)' }}>
+        <div className="card" style={{ border: '2px solid var(--warning)', padding: '16px' }}>
           <AdminMasterPin />
         </div>
       </Suspense>
@@ -271,20 +313,29 @@ export default function Admin() {
         <AdminVouchers />
       </Suspense>
 
-      {/* ✅ Device Status - memoized */}
+      {/* ===== DEVICE STATUS ===== */}
       <DeviceStatus 
         deviceStatus={deviceStatus} 
         onForceLamp={handleForceLamp} 
       />
 
-      {/* ✅ Bookings with refresh support */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">📋 Semua Pesanan</span>
+      {/* ===== BOOKINGS ===== */}
+      <div className="card" style={{ padding: '16px' }}>
+        <div className="card-header" style={{ marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <span className="card-title" style={{ fontSize: '16px' }}>📋 Semua Pesanan</span>
           <button 
             onClick={handleRefresh} 
             className="btn btn-outline btn-sm" 
-            style={{ width: 'auto', minHeight: '32px', padding: '4px 12px', fontSize: '12px' }}
+            style={{ 
+              width: 'auto', 
+              minHeight: '34px', 
+              padding: '4px 14px', 
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px'
+            }}
             disabled={refreshing}
           >
             {refreshing ? '⏳' : '🔄'} Refresh
