@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 import { forceLamp } from '../../lib/api'
 
 // ✅ Lazy load child components (only load when needed)
