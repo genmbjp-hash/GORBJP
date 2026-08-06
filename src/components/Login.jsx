@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signIn, getProfile } from '../lib/supabase'
-import { useToast } from '../App'
+import { useToast } from '../hooks/useToast'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const showToast = useToast()
+  const { showToast } = useToast()
 
   async function handleSubmit(e) {
     e.preventDefault()
