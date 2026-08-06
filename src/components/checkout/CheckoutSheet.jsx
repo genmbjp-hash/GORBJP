@@ -289,9 +289,9 @@ export default function CheckoutSheet({
                           className="voucher-input"
                           placeholder="Masukkan kode"
                           value={voucherCode}
-                          onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                          onChange={(e) => setVoucherCode(e.target.value)}
                           disabled={applying || !!voucher}
-                          style={{ flex: 1 }}
+                          style={{ flex: 1, textTransform: 'uppercase' }}
                         />
                         {voucher ? (
                           <button className="btn btn-secondary btn-sm" onClick={handleRemoveVoucher} disabled={applying}>
