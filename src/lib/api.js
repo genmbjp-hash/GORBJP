@@ -292,3 +292,26 @@ export async function createPaymentLink(bookingId, amount, customer, donationAmo
     return { success: false, error: error.message }
   }
 }
+
+// src/lib/api.js — Add these functions
+
+export async function getAnalytics() {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-analytics`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        }
+      }
+    )
+
+    const result = await response.json()
+    return result
+  } catch (error) {
+    console.error('Get analytics error:', error)
+    return { success: false, error: error.message }
+  }
+}
