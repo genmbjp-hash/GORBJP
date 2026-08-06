@@ -263,3 +263,32 @@ export async function createBooking(userId, slotData, duration, voucherId, donat
 
   return { data, error }
 }
+
+export async function createPaymentLink(bookingId, amount, customer, donationAmount = 0) {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-link`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          booking_id: bookingId,
+          amount: amount,
+          customer_name: customer?.display_name || customer?.full_name || 'Customer',
+          customer_email: customer?.email || '-',
+          customer_phone: customer?.phone || '-',
+          donation_amount: donationAmount || 0
+        })
+      }
+    )
+
+    const result = await response.json()
+    return result
+  } catch (error) {
+    console.error('Create payment link error:', error)
+    return { success: false, error: error.message }
+  }
+}
