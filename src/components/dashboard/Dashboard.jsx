@@ -171,7 +171,8 @@ const BookingItem = memo(function BookingItem({
 // MAIN DASHBOARD COMPONENT
 // ============================================
 
-export default function Dashboard({ user, profile }) {
+export default function Dashboard() {
+  const { user, profile } = useAuth()
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
