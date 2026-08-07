@@ -20,6 +20,9 @@ function getLocalDateString(date) {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+function getWIBDateKey(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+}
 
 function formatDateDisplay(date) {
   if (!date) return ''
@@ -87,46 +90,54 @@ export default function Booking({ user }) {
   // ============================================
 
   const generateSlots = useCallback((existingBookings, targetDate) => {
-    const slots = []
-    const now = new Date()
-    const isToday = targetDate.toDateString() === new Date().toDateString()
+  const slots = []
+  const now = new Date()
+  const nowWIB = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }))
+  const isToday = getWIBDateKey(targetDate) === getWIBDateKey(now)
 
-    for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
-      const startTime = new Date(targetDate)
-      startTime.setHours(hour, 0, 0, 0)
-      const endTime = new Date(startTime)
-      endTime.setHours(hour + SLOT_DURATION, 0, 0, 0)
+  // Helper to format date parts in WIB
+  const year = targetDate.getFullYear()
+  const month = String(targetDate.getMonth() + 1).padStart(2, '0')
+  const day = String(targetDate.getDate()).padStart(2, '0')
 
-      const booking = existingBookings.find(b => {
-        const bStart = new Date(b.start_time)
-        const bEnd = new Date(b.end_time)
-        const sameDate = bStart.toDateString() === targetDate.toDateString()
-        return sameDate && startTime < bEnd && endTime > bStart
-      })
+  for (let hour = OPEN_HOUR; hour <= CLOSE_HOUR; hour++) {
+    // ✅ Build slot times in WIB explicitly
+    const hours = String(hour).padStart(2, '0')
+    const endHours = String(hour + SLOT_DURATION).padStart(2, '0')
+    
+    const startTime = new Date(`${year}-${month}-${day} ${hours}:00:00+07:00`)
+    const endTime = new Date(`${year}-${month}-${day} ${endHours}:00:00+07:00`)
 
-      const isBooked = !!booking
-      const isAdminBooking = booking?.is_admin_booking || false
-      const isPast = isToday && startTime < now
-      const closureReason = booking?.closure_reason || null
+    const booking = existingBookings.find(b => {
+      const bStart = new Date(b.start_time)
+      const bEnd = new Date(b.end_time)
+      const sameDate = getWIBDateKey(bStart) === getWIBDateKey(targetDate)
+      return sameDate && startTime < bEnd && endTime > bStart
+    })
 
-      slots.push({
-        hour,
-        startTime,
-        endTime,
-        isBooked,
-        isAdminBooking,
-        isPast,
-        isAvailable: !isBooked && !isPast,
-        bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
-        bookingId: booking?.id || null,
-        closureReason
-      })
-    }
+    const isBooked = !!booking
+    const isAdminBooking = booking?.is_admin_booking || false
+    const isPast = isToday && startTime < nowWIB
+    const closureReason = booking?.closure_reason || null
 
-    setBookingSlots(slots)
-    setSelectedSlots([])
-  }, [OPEN_HOUR, CLOSE_HOUR, SLOT_DURATION])
+    slots.push({
+      hour,
+      startTime,
+      endTime,
+      isBooked,
+      isAdminBooking,
+      isPast,
+      isAvailable: !isBooked && !isPast,
+      bookedBy: booking?.profiles?.display_name || booking?.profiles?.full_name || null,
+      bookingId: booking?.id || null,
+      closureReason
+    })
+  }
 
+  setBookingSlots(slots)
+  setSelectedSlots([])
+}, [OPEN_HOUR, CLOSE_HOUR, SLOT_DURATION])
+  
   // ============================================
   // LOAD BOOKINGS
   // ============================================
