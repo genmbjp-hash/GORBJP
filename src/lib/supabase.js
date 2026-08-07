@@ -28,12 +28,9 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
 
   if (!error && data.user) {
     try {
-      console.log('🔵 [SIGNUP] Sending Telegram notification...')
       const profile = { display_name: displayName, full_name: fullName, email, phone, block, house_number: houseNumber }
       const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
-      console.log('🔵 [SIGNUP] URL:', EDGE_FUNCTION_URL)
-      
-      const response = await fetch(EDGE_FUNCTION_URL, {
+      await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,12 +38,8 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
         },
         body: JSON.stringify({ profile, type: 'register' })
       })
-      
-      const result = await response.json()
-      console.log('🔵 [SIGNUP] Telegram response:', result)
     } catch (err) {
-      console.error('❌ [SIGNUP] Telegram error:', err.message)
-      console.error('❌ [SIGNUP] Error details:', err)
+      // Silent fail
     }
   }
 
@@ -75,8 +68,6 @@ export async function getProfile(userId) {
 // ============================================
 // BOOKING FUNCTIONS
 // ============================================
-
-// src/lib/supabase.js
 
 export async function getBookingsForDate(dateObj) {
   const year = dateObj.getFullYear()
