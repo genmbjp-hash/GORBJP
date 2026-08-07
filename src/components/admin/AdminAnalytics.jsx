@@ -5,11 +5,21 @@ import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/price'
 import { useToast } from '../../contexts/ToastContext'
 
+// Returns 'YYYY-MM-DD' for the given date AS SEEN IN JAKARTA TIME,
+// regardless of the browser/server's own local timezone. Using
+// toISOString() (UTC) here would bucket any booking created between
+// midnight and 7am WIB onto the previous calendar day, since Jakarta is
+// UTC+7 — this isn't a "device might be misconfigured" edge case, it's a
+// guaranteed shift for a business that always operates in WIB.
+function getWIBDateKey(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+}
+
 export default function AdminAnalytics() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     revenue: { total: 0, today: 0, week: 0, month: 0 },
-    bookings: { total: 0, today: 0, active: 0, cancelled: 0, expired: 0 },
+    bookings: { total: 0, today: 0, active: 0, cancelled: 0 },
     donations: { total: 0, count: 0 },
     vouchers: { used: 0, discount: 0 },
     dailyBookings: []
@@ -19,8 +29,11 @@ export default function AdminAnalytics() {
   const loadAnalytics = useCallback(async () => {
     setLoading(true)
     try {
+      // Anchor "today"/"week ago"/"month ago" to WIB midnight, not the
+      // browser's local timezone — same reasoning as getWIBDateKey above.
       const now = new Date()
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const todayKeyWIB = getWIBDateKey(now)
+      const today = new Date(`${todayKeyWIB} 00:00:00+07:00`)
       const weekAgo = new Date(today)
       weekAgo.setDate(weekAgo.getDate() - 7)
       const monthAgo = new Date(today)
@@ -37,28 +50,37 @@ export default function AdminAnalytics() {
       // ✅ Calculate stats
       const revenue = { total: 0, today: 0, week: 0, month: 0 }
       const donations = { total: 0, count: 0 }
-      const bookingStats = { total: 0, today: 0, active: 0, cancelled: 0, expired: 0 }
+      const bookingStats = { total: 0, today: 0, active: 0, cancelled: 0 }
       const voucherStats = { used: 0, discount: 0 }
       
-      // ✅ Daily bookings for chart (last 7 days)
+      // ✅ Daily bookings for chart (last 7 days, WIB calendar days)
       const dailyMap = {}
       for (let i = 6; i >= 0; i--) {
         const d = new Date(today)
         d.setDate(d.getDate() - i)
-        const key = d.toISOString().split('T')[0]
+        const key = getWIBDateKey(d)
         dailyMap[key] = { date: key, count: 0, revenue: 0 }
       }
 
       bookings?.forEach(b => {
         const created = new Date(b.created_at)
-        const dateKey = created.toISOString().split('T')[0]
+        const dateKey = getWIBDateKey(created)
 
         // Bookings count
+        // NOTE: there's no distinct "expired" payment_status anywhere in
+        // this codebase — every cancellation path (customer-cancel,
+        // admin-cancel, abandoned payment) writes status: 'cancelled'.
+        // A previous version of this stat tried to split out an
+        // "expired" bucket by checking payment_status === 'expired',
+        // but nothing ever sets that value, so it was permanently stuck
+        // at 0 and silently miscounting real expirations as plain
+        // "cancelled". Rather than fake a distinction the data can't
+        // actually support, everything cancelled/expired is counted
+        // together here — accurate, if less granular.
         bookingStats.total++
         if (created >= today) bookingStats.today++
         if (b.status === 'active') bookingStats.active++
-        if (b.status === 'cancelled' && b.payment_status === 'expired') bookingStats.expired++
-        else if (b.status === 'cancelled') bookingStats.cancelled++
+        if (b.status === 'cancelled') bookingStats.cancelled++
 
         // Revenue (only paid bookings)
         if (b.payment_status === 'paid' || b.payment_status === 'free') {
@@ -79,12 +101,18 @@ export default function AdminAnalytics() {
             dailyMap[dateKey].count++
             dailyMap[dateKey].revenue += price
           }
-        }
 
-        // Vouchers
-        if (b.voucher_id && b.discount_applied > 0) {
-          voucherStats.used++
-          voucherStats.discount += b.discount_applied
+          // Vouchers — scoped inside the paid/free check on purpose.
+          // Voucher usage currently gets recorded the moment a PENDING
+          // booking is created (before payment is confirmed), and never
+          // rolled back if that booking is later abandoned or cancelled.
+          // Counting it here unconditionally would overstate how much
+          // discount was actually given to paying customers — this only
+          // reflects vouchers used on bookings that were genuinely paid.
+          if (b.voucher_id && b.discount_applied > 0) {
+            voucherStats.used++
+            voucherStats.discount += b.discount_applied
+          }
         }
       })
 
@@ -154,7 +182,7 @@ export default function AdminAnalytics() {
       {/* ===== BOOKINGS ===== */}
       <div style={{ marginBottom: '16px' }}>
         <h4 style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '8px' }}>📋 Booking</h4>
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
           <div className="stat-card" style={{ padding: '10px' }}>
             <div className="stat-number" style={{ fontSize: '18px' }}>{stats.bookings.total}</div>
             <div className="stat-label">Total</div>
@@ -170,10 +198,6 @@ export default function AdminAnalytics() {
           <div className="stat-card" style={{ padding: '10px' }}>
             <div className="stat-number" style={{ fontSize: '18px', color: 'var(--danger)' }}>{stats.bookings.cancelled}</div>
             <div className="stat-label">Dibatalkan</div>
-          </div>
-          <div className="stat-card" style={{ padding: '10px' }}>
-            <div className="stat-number" style={{ fontSize: '18px', color: 'var(--warning)' }}>{stats.bookings.expired}</div>
-            <div className="stat-label">Kadaluarsa</div>
           </div>
         </div>
       </div>
