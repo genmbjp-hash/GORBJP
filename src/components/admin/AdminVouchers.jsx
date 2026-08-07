@@ -166,7 +166,7 @@ export default function AdminVouchers() {
 
   // ✅ Get discount label
   const getDiscountLabel = useCallback((v) => {
-    if (v.discount_type === 'free') return 'Gratis (Rp 1)'
+    if (v.discount_type === 'free') return 'Gratis (Rp 1000)'
     if (v.discount_type === 'percentage') return `${v.discount_value}%`
     if (v.discount_type === 'fixed') return `Rp ${v.discount_value.toLocaleString()}`
     return '-'
@@ -466,7 +466,7 @@ export default function AdminVouchers() {
               >
                 <option value="percentage">Percentage (%)</option>
                 <option value="fixed">Fixed Amount (Rp)</option>
-                <option value="free">Free (Rp 1)</option>
+                <option value="free">Free (Rp 1000)</option>
               </select>
             </div>
 
