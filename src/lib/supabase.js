@@ -173,20 +173,6 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     .select()
     .single()
 
-  if (!error) {
-    try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single()
-      if (profile) {
-        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
-        await fetch(EDGE_FUNCTION_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ booking: data, profile, type: 'booking' })
-        })
-      }
-    } catch (err) { /* silent fail */ }
-  }
-
   return { data, error }
 }
 
