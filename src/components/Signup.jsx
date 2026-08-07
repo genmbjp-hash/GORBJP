@@ -19,23 +19,37 @@ export default function Signup() {
     e.preventDefault()
     setLoading(true)
 
+    console.log('🔵 Signup started')
+    console.log('🔵 Email:', email)
+    console.log('🔵 Full name:', fullName)
+    console.log('🔵 Display name:', displayName)
+    console.log('🔵 Phone:', phone)
+    console.log('🔵 Block:', block)
+    console.log('🔵 House number:', houseNumber)
+    console.log('🔵 Password length:', password.length)
+
     if (password.length < 6) {
+      console.log('❌ Password too short')
       showToast('❌ Kata sandi minimal 6 karakter', 'error')
       setLoading(false)
       return
     }
 
     if (!block) {
+      console.log('❌ Block not selected')
       showToast('❌ Silakan pilih Blok', 'error')
       setLoading(false)
       return
     }
 
     if (!houseNumber.trim()) {
+      console.log('❌ House number empty')
       showToast('❌ Nomor Rumah wajib diisi', 'error')
       setLoading(false)
       return
     }
+
+    console.log('🔵 Calling signUp...')
 
     const { data, error } = await signUp(
       email,
@@ -47,12 +61,18 @@ export default function Signup() {
       houseNumber
     )
 
+    console.log('🔵 signUp response received')
+    console.log('🔵 Data:', JSON.stringify(data, null, 2))
+    console.log('🔵 Error:', JSON.stringify(error, null, 2))
+
     if (error) {
+      console.log('❌ Signup error:', error.message, error)
       showToast('❌ ' + error.message, 'error')
       setLoading(false)
       return
     }
 
+    console.log('✅ Signup success! User created:', data.user?.id)
     setSuccess(true)
     showToast('✅ Pendaftaran berhasil! Menunggu persetujuan admin.', 'success')
     setLoading(false)
