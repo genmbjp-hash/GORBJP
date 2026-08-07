@@ -328,7 +328,7 @@ export default function CheckoutSheet({
                     <input
                       type="number"
                       className="form-input"
-                      placeholder="Contoh: 25000"
+                      placeholder="Contoh: 15000"
                       value={donationAmount}
                       onChange={(e) => setDonationAmount(e.target.value)}
                       min="1"
