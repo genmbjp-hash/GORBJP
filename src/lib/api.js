@@ -218,7 +218,20 @@ export async function createBooking(userId, slotData, duration, voucherId, donat
   }
 
   // ✅ Add donation to final price
-  const donationAmountInt = parseInt(donationAmount) || 0
+  // This is the authoritative validation — client-side checks (the input's
+  // min="1" attribute, etc.) are only a UX hint and can't be trusted, since
+  // a negative "donation" here would directly reduce the real charged
+  // price (finalPrice + a negative number = customer pays less than they
+  // should). Clamp to a non-negative integer, and cap it at a sane upper
+  // bound too so a typo (or someone testing what happens) doesn't create
+  // an absurd Midtrans transaction amount.
+  const MAX_DONATION = 10_000_000 // Rp 10,000,000
+  let donationAmountInt = parseInt(donationAmount, 10)
+  if (!Number.isFinite(donationAmountInt) || donationAmountInt < 0) {
+    donationAmountInt = 0
+  }
+  donationAmountInt = Math.min(donationAmountInt, MAX_DONATION)
+
   const priceWithDonation = finalPrice + donationAmountInt
 
   const { data, error } = await supabase
