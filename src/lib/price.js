@@ -28,7 +28,7 @@ export function calculateDiscount(originalPrice, voucher) {
   if (!voucher) return 0
 
   if (voucher.discount_type === 'free') {
-    return originalPrice - 1  // Free = Rp 1
+    return originalPrice - 1000  // Free = Rp 1000
   }
 
   if (voucher.discount_type === 'percentage') {
