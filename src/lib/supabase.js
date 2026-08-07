@@ -29,7 +29,7 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
   if (!error && data.user) {
     try {
       console.log('🔵 [SIGNUP] Sending Telegram notification...')
-      const profile = { display_name: displayName, full_name: fullName, email, phone, block, house_number }
+      const profile = { display_name: displayName, full_name: fullName, email, phone, block, house_number: houseNumber }
       const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
       console.log('🔵 [SIGNUP] URL:', EDGE_FUNCTION_URL)
       
