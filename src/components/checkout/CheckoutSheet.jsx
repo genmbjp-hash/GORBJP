@@ -104,6 +104,14 @@ export default function CheckoutSheet({
   }
 
   const handleConfirmBooking = async () => {
+    // Client-side check for immediate feedback — the real enforcement
+    // (non-negative, capped) happens server-side in createBooking, since
+    // this check alone could be bypassed.
+    if (addDonation && donationInt <= 0) {
+      showToast('❌ Masukkan nominal donasi yang valid', 'error')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -330,7 +338,13 @@ export default function CheckoutSheet({
                       className="form-input"
                       placeholder="Contoh: 15000"
                       value={donationAmount}
-                      onChange={(e) => setDonationAmount(e.target.value)}
+                      onChange={(e) => {
+                        // Strip anything that isn't a digit — blocks "-",
+                        // "e", decimals, etc. at the source, rather than
+                        // only catching it later at submit time.
+                        const digitsOnly = e.target.value.replace(/[^0-9]/g, '')
+                        setDonationAmount(digitsOnly)
+                      }}
                       min="1"
                       style={{
                         padding: '6px 12px',
