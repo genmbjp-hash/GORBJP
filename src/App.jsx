@@ -1,6 +1,8 @@
 import React, { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import ProtectedRoute from './components/ProtectedRoute'
+import GuestRoute from './components/GuestRoute'
 import PaymentStatus from './components/PaymentStatus'
 
 // Lazy load components
@@ -11,7 +13,6 @@ const Booking = lazy(() => import('./components/booking/Booking'))
 const Admin = lazy(() => import('./components/admin/Admin'))
 const LandingPage = lazy(() => import('./components/LandingPage'))
 
-// Loading Spinner Component
 function LoadingSpinner() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -21,13 +22,7 @@ function LoadingSpinner() {
 }
 
 function App() {
-  // ✅ Use auth from context (removed local auth state)
-  const { user, profile, loading } = useAuth()
-
-  // ✅ Route protection logic
-  const isApproved = user && profile?.status === 'approved'
-  const isAdmin = isApproved && profile?.role === 'admin'
-  const isCustomer = isApproved && profile?.role !== 'admin'
+  const { loading } = useAuth()
 
   if (loading) {
     return <LoadingSpinner />
@@ -37,44 +32,38 @@ function App() {
     <div className="app">
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
-            <Route path="/" element={
-              isApproved ? (
-                isAdmin ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-              ) : (
-                <LandingPage user={user} profile={profile} />
-              )
-            } />
-            <Route path="/login" element={
-              isApproved ? (
-                isAdmin ? <Navigate to="/admin" /> : <Navigate to="/dashboard" />
-              ) : (
-                <Login />
-              )
-            } />
-            <Route path="/signup" element={
-              user ? <Navigate to="/" /> : <Signup />
-            } />
-            <Route path="/dashboard" element={
-              isCustomer ? (
-                <Dashboard user={user} profile={profile} />
-              ) : (
-                <Navigate to="/" />
-              )
-            } />
-            <Route path="/booking" element={
-              isApproved ? (
-                <Booking user={user} />
-              ) : (
-                <Navigate to="/" />
-              )
-            } />
-            <Route path="/admin" element={
-              isAdmin ? (
-                <Admin user={user} />
-              ) : (
-                <Navigate to="/" />
-              )
-            } />
+          <Route path="/" element={<LandingPage />} />
+          
+          <Route path="/login" element={
+            <GuestRoute>
+              <Login />
+            </GuestRoute>
+          } />
+          
+          <Route path="/signup" element={
+            <GuestRoute>
+              <Signup />
+            </GuestRoute>
+          } />
+
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/booking" element={
+            <ProtectedRoute>
+              <Booking />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin" element={
+            <ProtectedRoute requireAdmin>
+              <Admin />
+            </ProtectedRoute>
+          } />
+
           <Route path="/payment-status" element={<PaymentStatus />} />
         </Routes>
       </Suspense>
