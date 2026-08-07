@@ -29,7 +29,7 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
   if (!error && data.user) {
     try {
       const profile = { display_name: displayName, full_name: fullName, email, phone, block, house_number }
-      const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
+      const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
       await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
@@ -179,7 +179,7 @@ export async function createBookingWithCheckout(userId, slotData, duration) {
     try {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single()
       if (profile) {
-        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
+        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
         await fetch(EDGE_FUNCTION_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -281,7 +281,7 @@ export async function confirmPayment(bookingId) {
         .eq('id', data.user_id)
         .single()
       if (profile) {
-        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`
+        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
         await fetch(EDGE_FUNCTION_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
