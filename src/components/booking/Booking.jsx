@@ -48,7 +48,8 @@ function formatTime(date) {
 // MAIN COMPONENT
 // ============================================
 
-export default function Booking({ user }) {
+export default function Booking() {
+  const { user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const { showToast } = useToast()
