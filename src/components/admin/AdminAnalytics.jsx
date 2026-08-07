@@ -19,7 +19,7 @@ export default function AdminAnalytics() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     revenue: { total: 0, today: 0, week: 0, month: 0 },
-    bookings: { total: 0, today: 0, active: 0, cancelled: 0 },
+    bookings: { total: 0, today: 0, active: 0, cancelled: 0, expired: 0 },
     donations: { total: 0, count: 0 },
     vouchers: { used: 0, discount: 0 },
     dailyBookings: []
@@ -50,7 +50,7 @@ export default function AdminAnalytics() {
       // ✅ Calculate stats
       const revenue = { total: 0, today: 0, week: 0, month: 0 }
       const donations = { total: 0, count: 0 }
-      const bookingStats = { total: 0, today: 0, active: 0, cancelled: 0 }
+      const bookingStats = { total: 0, today: 0, active: 0, cancelled: 0, expired: 0 }
       const voucherStats = { used: 0, discount: 0 }
       
       // ✅ Daily bookings for chart (last 7 days, WIB calendar days)
@@ -67,20 +67,20 @@ export default function AdminAnalytics() {
         const dateKey = getWIBDateKey(created)
 
         // Bookings count
-        // NOTE: there's no distinct "expired" payment_status anywhere in
-        // this codebase — every cancellation path (customer-cancel,
-        // admin-cancel, abandoned payment) writes status: 'cancelled'.
-        // A previous version of this stat tried to split out an
-        // "expired" bucket by checking payment_status === 'expired',
-        // but nothing ever sets that value, so it was permanently stuck
-        // at 0 and silently miscounting real expirations as plain
-        // "cancelled". Rather than fake a distinction the data can't
-        // actually support, everything cancelled/expired is counted
-        // together here — accurate, if less granular.
+        // "expired" is a real, distinct payment_status — confirmed from
+        // the live midtrans-webhook.ts, which sets status: 'cancelled' +
+        // payment_status: 'expired' specifically for Midtrans
+        // expire/cancel/deny notifications, separate from customer/admin
+        // -initiated cancellations (which write payment_status: 'failed'
+        // via cancelPendingBooking). An earlier version of this file
+        // removed this distinction based on an outdated copy of the
+        // webhook that didn't yet set 'expired' — restored now that it's
+        // confirmed live.
         bookingStats.total++
         if (created >= today) bookingStats.today++
         if (b.status === 'active') bookingStats.active++
-        if (b.status === 'cancelled') bookingStats.cancelled++
+        if (b.status === 'cancelled' && b.payment_status === 'expired') bookingStats.expired++
+        else if (b.status === 'cancelled') bookingStats.cancelled++
 
         // Revenue (only paid bookings)
         if (b.payment_status === 'paid' || b.payment_status === 'free') {
@@ -182,7 +182,7 @@ export default function AdminAnalytics() {
       {/* ===== BOOKINGS ===== */}
       <div style={{ marginBottom: '16px' }}>
         <h4 style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '8px' }}>📋 Booking</h4>
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
           <div className="stat-card" style={{ padding: '10px' }}>
             <div className="stat-number" style={{ fontSize: '18px' }}>{stats.bookings.total}</div>
             <div className="stat-label">Total</div>
@@ -198,6 +198,10 @@ export default function AdminAnalytics() {
           <div className="stat-card" style={{ padding: '10px' }}>
             <div className="stat-number" style={{ fontSize: '18px', color: 'var(--danger)' }}>{stats.bookings.cancelled}</div>
             <div className="stat-label">Dibatalkan</div>
+          </div>
+          <div className="stat-card" style={{ padding: '10px' }}>
+            <div className="stat-number" style={{ fontSize: '18px', color: 'var(--warning)' }}>{stats.bookings.expired}</div>
+            <div className="stat-label">Kadaluarsa</div>
           </div>
         </div>
       </div>
