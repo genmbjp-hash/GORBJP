@@ -210,8 +210,8 @@ export async function createBooking(userId, slotData, duration, voucherId, donat
       discountApplied = discount
       finalPrice = originalPrice - discount
       if (voucher.discount_type === 'free') {
-        finalPrice = 1
-        discountApplied = originalPrice - 1
+        finalPrice = 1000
+        discountApplied = originalPrice - 1000
       }
       voucherIdToUse = voucherId
     }
