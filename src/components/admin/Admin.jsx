@@ -74,7 +74,6 @@ const DeviceStatus = React.memo(function DeviceStatus({ deviceStatus, onForceLam
 })
 
 export default function Admin() {
-  const { user } = useAuth()
   const { user, isAdmin, signOut } = useAuth()
   const [bookings, setBookings] = useState([])
   const [stats, setStats] = useState({ pending: 0, today: 0, active: 0, total: 0 })
