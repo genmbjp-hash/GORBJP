@@ -28,9 +28,12 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
 
   if (!error && data.user) {
     try {
+      console.log('🔵 [SIGNUP] Sending Telegram notification...')
       const profile = { display_name: displayName, full_name: fullName, email, phone, block, house_number }
       const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram-v2`
-      await fetch(EDGE_FUNCTION_URL, {
+      console.log('🔵 [SIGNUP] URL:', EDGE_FUNCTION_URL)
+      
+      const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,8 +41,12 @@ export async function signUp(email, password, fullName, displayName, phone, bloc
         },
         body: JSON.stringify({ profile, type: 'register' })
       })
+      
+      const result = await response.json()
+      console.log('🔵 [SIGNUP] Telegram response:', result)
     } catch (err) {
-      // Silent fail
+      console.error('❌ [SIGNUP] Telegram error:', err.message)
+      console.error('❌ [SIGNUP] Error details:', err)
     }
   }
 
