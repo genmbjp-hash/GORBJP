@@ -86,11 +86,7 @@ export default function AdminBookings({ bookings, onRefresh }) {
   const pendingBookings = bookings.filter(b => b.status === 'pending' && b.payment_status === 'pending')
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">📋 Semua Pesanan</span>
-      </div>
-
+    <>
       {bookings.length === 0 ? (
         <p style={{ color: 'var(--gray-400)', textAlign: 'center', padding: '20px' }}>Belum ada pesanan</p>
       ) : (
@@ -139,7 +135,7 @@ export default function AdminBookings({ bookings, onRefresh }) {
 
           {/* All Other Bookings */}
           <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-500)', marginTop: '8px' }}>
-            📋 Semua Pesanan
+            🗂️ Riwayat Pesanan
           </h4>
           {bookings.filter(b => !(b.status === 'pending' && b.payment_status === 'pending')).slice(0, 20).map(b => (
             <div key={b.id} className="booking-item">
@@ -181,6 +177,6 @@ export default function AdminBookings({ bookings, onRefresh }) {
           Menampilkan 20 dari {bookings.length} pesanan
         </p>
       )}
-    </div>
+    </>
   )
 }
