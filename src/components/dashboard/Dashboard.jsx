@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, getUserBookings, signOut, completeExpiredBookings, cancelPendingBooking } from '../../lib/supabase'
 import { useToast } from '../../contexts/ToastContext'
+import { useAuth } from '../../hooks/useAuth'
 
 // ============================================
 // HELPER FUNCTIONS
